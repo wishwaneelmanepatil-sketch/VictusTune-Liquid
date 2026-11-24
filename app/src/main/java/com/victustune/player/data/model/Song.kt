@@ -1,6 +1,7 @@
 package com.victustune.player.data.model
 
 import android.net.Uri
+import com.victustune.player.data.remote.innertube.ThumbnailUtils
 
 sealed class TrackSource {
     data class Local(val uri: Uri) : TrackSource()
@@ -51,6 +52,7 @@ data class Song(
             thumbnailUrl: String? = null,
             channelId: String? = null
         ): Song {
+            val highResThumbnail = ThumbnailUtils.upgrade(thumbnailUrl) ?: thumbnailUrl
             val stableId = (videoId.hashCode().toLong() and 0x7FFFFFFFFFFFFFFFL)
             return Song(
                 id = stableId,
@@ -59,10 +61,10 @@ data class Song(
                 album = album,
                 durationMs = durationMs,
                 contentUri = Uri.parse("stream://$videoId"),
-                albumArtUri = thumbnailUrl?.let { Uri.parse(it) },
+                albumArtUri = highResThumbnail?.let { Uri.parse(it) },
                 source = TrackSource.Remote(
                     videoId = videoId,
-                    thumbnailUrl = thumbnailUrl,
+                    thumbnailUrl = highResThumbnail,
                     channelId = channelId
                 )
             )

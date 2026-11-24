@@ -19,14 +19,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.victustune.player.data.model.BrowseResult
 import com.victustune.player.data.model.RemoteTrack
 import com.victustune.player.data.model.Song
+import com.victustune.player.data.remote.innertube.ThumbnailUtils
 import com.victustune.player.ui.theme.*
 
 @Composable
@@ -83,7 +86,10 @@ fun RemoteDetailScreen(
                 ) {
                     if (displayThumbnail != null) {
                         AsyncImage(
-                            model = displayThumbnail,
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(ThumbnailUtils.upgrade(displayThumbnail) ?: displayThumbnail)
+                                .crossfade(true)
+                                .build(),
                             contentDescription = displayTitle,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()

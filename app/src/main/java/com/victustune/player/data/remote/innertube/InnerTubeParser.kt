@@ -374,9 +374,12 @@ object InnerTubeParser {
             ?: item["thumbnailRenderer"]?.jsonObject?.get("musicThumbnailRenderer")?.jsonObject?.get("thumbnail")?.jsonObject?.get("thumbnails")?.jsonArray
             ?: item["thumbnails"]?.jsonArray
 
-        val best = thumbs?.lastOrNull()?.jsonObject?.get("url")?.jsonPrimitive?.contentOrNull
+        val best = thumbs?.maxByOrNull {
+            it.jsonObject["width"]?.jsonPrimitive?.intOrNull ?: 0
+        }?.jsonObject?.get("url")?.jsonPrimitive?.contentOrNull
+            ?: thumbs?.lastOrNull()?.jsonObject?.get("url")?.jsonPrimitive?.contentOrNull
             ?: thumbs?.firstOrNull()?.jsonObject?.get("url")?.jsonPrimitive?.contentOrNull
-        return best?.let { cleanThumbnailUrl(it) }
+        return best?.let { ThumbnailUtils.upgrade(cleanThumbnailUrl(it)) }
     }
 
     private fun cleanThumbnailUrl(url: String): String {

@@ -30,6 +30,7 @@ import coil.request.ImageRequest
 import com.victustune.player.data.model.LyricLine
 import com.victustune.player.data.model.PlaybackState
 import com.victustune.player.data.model.RepeatMode
+import com.victustune.player.data.remote.innertube.ThumbnailUtils
 import com.victustune.player.ui.components.MarqueeText
 import com.victustune.player.ui.components.WaveformScrubber
 import com.victustune.player.ui.theme.*
@@ -183,7 +184,7 @@ fun NowPlayingSheet(
                         ) {
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalContext.current)
-                                    .data(song.albumArtUri)
+                                    .data(song.albumArtUri?.toString()?.let { ThumbnailUtils.upgrade(it) } ?: song.albumArtUri)
                                     .crossfade(true)
                                     .build(),
                                 contentDescription = "${song.title} artwork",
