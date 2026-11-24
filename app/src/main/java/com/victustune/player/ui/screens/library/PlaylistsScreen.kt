@@ -81,7 +81,7 @@ fun PlaylistsScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(bottom = 90.dp)
+            contentPadding = PaddingValues(bottom = 160.dp)
         ) {
             // Favorites Quick Card
             item {

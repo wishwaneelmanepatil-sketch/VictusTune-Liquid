@@ -85,7 +85,7 @@ fun ExploreScreen(
                 val result = exploreState.result
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 12.dp, bottom = 120.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 160.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     items(result.sections) { section ->

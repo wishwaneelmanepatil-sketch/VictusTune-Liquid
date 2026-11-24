@@ -3,6 +3,7 @@ package com.victustune.player.ui.screens
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,7 +20,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.victustune.player.data.model.*
+import com.victustune.player.ui.components.FloatingNavDock
 import com.victustune.player.ui.components.MiniPlayer
+import com.victustune.player.ui.components.NavDockItem
 import com.victustune.player.ui.screens.explore.ExploreScreen
 import com.victustune.player.ui.screens.explore.RemoteDetailScreen
 import com.victustune.player.ui.screens.extras.EqualizerScreen
@@ -169,38 +172,37 @@ fun MainScreen(
                     }
                 }
 
-                // Scrollable/Fixed Tab Row
-                ScrollableTabRow(
-                    selectedTabIndex = currentTab.ordinal,
-                    containerColor = Color.Transparent,
-                    contentColor = TextPrimary,
-                    edgePadding = 16.dp,
-                    indicator = { tabPositions ->
-                        if (currentTab.ordinal < tabPositions.size) {
+                // Library Sub-Filter Chips when on Library
+                if (currentTab == MainTab.TRACKS || currentTab == MainTab.ALBUMS || currentTab == MainTab.ARTISTS) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            MainTab.TRACKS to "Tracks",
+                            MainTab.ALBUMS to "Albums",
+                            MainTab.ARTISTS to "Artists"
+                        ).forEach { (tab, label) ->
+                            val isSelected = currentTab == tab
                             Box(
-                                Modifier
-                                    .tabIndicatorOffset(tabPositions[currentTab.ordinal])
-                                    .height(3.dp)
-                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                    .background(accentColor)
-                            )
-                        }
-                    },
-                    divider = {}
-                ) {
-                    MainTab.values().forEach { tab ->
-                        Tab(
-                            selected = currentTab == tab,
-                            onClick = { currentTab = tab },
-                            text = {
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        if (isSelected) accentColor else DarkSurfaceVariant
+                                    )
+                                    .clickable { currentTab = tab }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
                                 Text(
-                                    text = tab.title,
-                                    fontSize = 14.sp,
-                                    fontWeight = if (currentTab == tab) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (currentTab == tab) TextPrimary else TextTertiary
+                                    text = label,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) Color.White else TextSecondary
                                 )
                             }
-                        )
+                        }
                     }
                 }
             }
@@ -455,13 +457,13 @@ fun MainScreen(
             }
         }
 
-        // Persistent Mini-Player floating docked above bottom navigation
+        // Persistent Mini-Player floating docked above the navigation dock
         if (playbackState.currentSong != null && !isNowPlayingExpanded) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(bottom = 8.dp)
+                    .padding(bottom = 78.dp, start = 12.dp, end = 12.dp)
             ) {
                 MiniPlayer(
                     playbackState = playbackState,
@@ -470,6 +472,43 @@ fun MainScreen(
                     onTogglePlayPause = { viewModel.togglePlayPause() },
                     onSkipNext = { viewModel.playNext() },
                     onSkipPrevious = { viewModel.playPrevious() }
+                )
+            }
+        }
+
+        // Floating Navigation Dock (Home, Search, Library, Playlists)
+        if (!isNowPlayingExpanded) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 8.dp)
+            ) {
+                FloatingNavDock(
+                    currentTab = currentTab,
+                    currentSubScreen = currentSubScreen,
+                    accentColor = accentColor,
+                    onItemSelected = { item ->
+                        when (item) {
+                            NavDockItem.HOME -> {
+                                currentSubScreen = SubScreen.Main
+                                currentTab = MainTab.EXPLORE
+                            }
+                            NavDockItem.SEARCH -> {
+                                currentSubScreen = SubScreen.Search
+                            }
+                            NavDockItem.LIBRARY -> {
+                                currentSubScreen = SubScreen.Main
+                                if (currentTab != MainTab.TRACKS && currentTab != MainTab.ALBUMS && currentTab != MainTab.ARTISTS) {
+                                    currentTab = MainTab.TRACKS
+                                }
+                            }
+                            NavDockItem.PLAYLISTS -> {
+                                currentSubScreen = SubScreen.Main
+                                currentTab = MainTab.PLAYLISTS
+                            }
+                        }
+                    }
                 )
             }
         }

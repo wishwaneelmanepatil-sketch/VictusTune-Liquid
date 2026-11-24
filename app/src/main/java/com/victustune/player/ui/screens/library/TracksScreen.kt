@@ -155,7 +155,7 @@ fun TracksScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            contentPadding = PaddingValues(bottom = 90.dp)
+            contentPadding = PaddingValues(bottom = 160.dp)
         ) {
             items(sortedSongs, key = { it.id }) { song ->
                 TrackItem(

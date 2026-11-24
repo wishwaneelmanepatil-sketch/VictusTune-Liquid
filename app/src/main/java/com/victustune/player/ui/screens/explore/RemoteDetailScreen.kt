@@ -75,7 +75,7 @@ fun RemoteDetailScreen(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 120.dp)
+            contentPadding = PaddingValues(bottom = 160.dp)
         ) {
             // Header Image & Back Button
             item {

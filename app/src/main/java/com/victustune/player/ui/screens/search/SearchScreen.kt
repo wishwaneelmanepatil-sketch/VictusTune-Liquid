@@ -212,7 +212,7 @@ fun SearchScreen(
 
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
-                        contentPadding = PaddingValues(start = 0.dp, top = 0.dp, end = 0.dp, bottom = 90.dp)
+                        contentPadding = PaddingValues(start = 0.dp, top = 0.dp, end = 0.dp, bottom = 160.dp)
                     ) {
                         items(recentSearches) { query ->
                             Row(
@@ -301,7 +301,7 @@ fun SearchScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
-                    contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 120.dp)
+                    contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 160.dp)
                 ) {
                     items(filteredLocalSongs, key = { it.id }) { song ->
                         TrackItem(
@@ -356,7 +356,7 @@ fun SearchScreen(
                     val result = onlineSearchState.result
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 120.dp),
+                        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 160.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         when (selectedCategory) {

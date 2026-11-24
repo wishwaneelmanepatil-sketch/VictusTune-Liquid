@@ -47,7 +47,7 @@ fun AlbumsScreen(
             columns = GridCells.Fixed(2),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 90.dp),
+            contentPadding = PaddingValues(bottom = 160.dp),
             modifier = Modifier.fillMaxSize()
         ) {
             items(albums, key = { it.id }) { album ->

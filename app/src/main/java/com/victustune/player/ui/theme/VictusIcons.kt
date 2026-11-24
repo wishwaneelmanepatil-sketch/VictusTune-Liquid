@@ -694,4 +694,75 @@ object VictusIcons {
             }.build()
             return _close!!
         }
+
+    private var _home: ImageVector? = null
+    val Home: ImageVector
+        get() {
+            if (_home != null) return _home!!
+            _home = ImageVector.Builder(
+                name = "Home",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(10f, 20f)
+                verticalLineToRelative(-6f)
+                horizontalLineToRelative(4f)
+                verticalLineToRelative(6f)
+                horizontalLineToRelative(5f)
+                verticalLineToRelative(-8f)
+                horizontalLineToRelative(3f)
+                lineTo(12f, 3f)
+                lineTo(2f, 12f)
+                horizontalLineToRelative(3f)
+                verticalLineToRelative(8f)
+                close()
+            }.build()
+            return _home!!
+        }
+
+    private var _libraryMusic: ImageVector? = null
+    val LibraryMusic: ImageVector
+        get() {
+            if (_libraryMusic != null) return _libraryMusic!!
+            _libraryMusic = ImageVector.Builder(
+                name = "LibraryMusic",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(20f, 6f)
+                horizontalLineTo(8f)
+                curveToRelative(-1.1f, 0f, -2f, 0.9f, -2f, 2f)
+                verticalLineToRelative(12f)
+                curveToRelative(0f, 1.1f, 0.9f, 2f, 2f, 2f)
+                horizontalLineToRelative(12f)
+                curveToRelative(1.1f, 0f, 2f, -0.9f, 2f, -2f)
+                verticalLineTo(8f)
+                curveToRelative(0f, -1.1f, -0.9f, -2f, -2f, -2f)
+                close()
+                moveTo(18f, 13f)
+                horizontalLineToRelative(-3f)
+                verticalLineToRelative(3.5f)
+                curveToRelative(0f, 1.38f, -1.12f, 2.5f, -2.5f, 2.5f)
+                reflectiveCurveTo(10f, 17.88f, 10f, 16.5f)
+                reflectiveCurveToRelative(1.12f, -2.5f, 2.5f, -2.5f)
+                curveToRelative(0.57f, 0f, 1.08f, 0.19f, 1.5f, 0.51f)
+                verticalLineTo(11f)
+                horizontalLineToRelative(4f)
+                verticalLineToRelative(2f)
+                close()
+                moveTo(4f, 2f)
+                verticalLineToRelative(16f)
+                horizontalLineToRelative(2f)
+                verticalLineTo(4f)
+                horizontalLineToRelative(14f)
+                verticalLineTo(2f)
+                horizontalLineTo(4f)
+                close()
+            }.build()
+            return _libraryMusic!!
+        }
 }

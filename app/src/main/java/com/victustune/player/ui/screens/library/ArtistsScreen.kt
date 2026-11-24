@@ -46,7 +46,7 @@ fun ArtistsScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(bottom = 90.dp)
+            contentPadding = PaddingValues(bottom = 160.dp)
         ) {
             items(artists, key = { it.id }) { artist ->
                 Row(
