@@ -42,6 +42,9 @@ interface PlaylistDao {
 
 @Dao
 interface FavoriteDao {
+    @Query("SELECT * FROM favorites ORDER BY addedAt DESC")
+    fun getAllFavorites(): Flow<List<FavoriteEntity>>
+
     @Query("SELECT songId FROM favorites ORDER BY addedAt DESC")
     fun getAllFavoriteSongIds(): Flow<List<Long>>
 

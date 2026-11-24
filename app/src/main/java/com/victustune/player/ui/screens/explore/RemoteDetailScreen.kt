@@ -45,6 +45,7 @@ fun RemoteDetailScreen(
     onTrackClick: (RemoteTrack, List<RemoteTrack>) -> Unit,
     onAddToQueue: (RemoteTrack) -> Unit,
     onAddToPlaylist: (Song) -> Unit,
+    onToggleFavorite: (Song) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isLoading by remember { mutableStateOf(true) }
@@ -337,6 +338,13 @@ fun RemoteDetailScreen(
                                     text = { Text("Add to Playlist", color = TextPrimary) },
                                     onClick = {
                                         onAddToPlaylist(track.toSong())
+                                        isMenuOpen = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Favorite", color = TextPrimary) },
+                                    onClick = {
+                                        onToggleFavorite(track.toSong())
                                         isMenuOpen = false
                                     }
                                 )

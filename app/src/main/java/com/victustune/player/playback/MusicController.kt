@@ -324,6 +324,22 @@ class MusicController(
         _sleepTimerRemainingSeconds.value = null
     }
 
+    fun updateCurrentSongFavorite(isFavorite: Boolean) {
+        _playbackState.update { state ->
+            val updatedSong = state.currentSong?.copy(isFavorite = isFavorite)
+            val updatedQueue = state.queue.map { song ->
+                if (song.id == state.currentSong?.id) song.copy(isFavorite = isFavorite) else song
+            }
+            state.copy(
+                currentSong = updatedSong,
+                queue = updatedQueue
+            )
+        }
+        currentSongList = currentSongList.map { song ->
+            if (song.id == _playbackState.value.currentSong?.id) song.copy(isFavorite = isFavorite) else song
+        }
+    }
+
     private fun songToMediaItem(song: Song): MediaItem {
         val metadata = MediaMetadata.Builder()
             .setTitle(song.title)

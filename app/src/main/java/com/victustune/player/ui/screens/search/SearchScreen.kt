@@ -366,7 +366,8 @@ fun SearchScreen(
                                         track = track,
                                         onClick = { onRemoteTrackClick(track) },
                                         onAddToQueue = { onAddToQueue(track.toSong()) },
-                                        onAddToPlaylist = { onAddToPlaylist(track.toSong()) }
+                                        onAddToPlaylist = { onAddToPlaylist(track.toSong()) },
+                                        onToggleFavorite = { onToggleFavorite(track.toSong()) }
                                     )
                                 }
                             }
@@ -409,6 +410,7 @@ fun RemoteTrackSearchItem(
     onClick: () -> Unit,
     onAddToQueue: () -> Unit,
     onAddToPlaylist: () -> Unit,
+    onToggleFavorite: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
@@ -488,6 +490,13 @@ fun RemoteTrackSearchItem(
                     text = { Text("Add to Playlist", color = TextPrimary) },
                     onClick = {
                         onAddToPlaylist()
+                        isMenuOpen = false
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Favorite", color = TextPrimary) },
+                    onClick = {
+                        onToggleFavorite()
                         isMenuOpen = false
                     }
                 )

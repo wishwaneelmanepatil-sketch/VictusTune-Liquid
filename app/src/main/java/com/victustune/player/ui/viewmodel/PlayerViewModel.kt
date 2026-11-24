@@ -54,6 +54,9 @@ class PlayerViewModel(
     val favoriteSongs: StateFlow<List<Song>> = playlistRepository.getFavoriteSongs()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    val favoriteSongIds: StateFlow<Set<Long>> = playlistRepository.getFavoriteSongIds()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
     val playbackState: StateFlow<PlaybackState> = musicController.playbackState
     val sleepTimerRemainingSeconds: StateFlow<Int?> = musicController.sleepTimerRemainingSeconds
 
@@ -97,6 +100,20 @@ class PlayerViewModel(
                         _lyrics.value = emptyList()
                     }
                 }
+        }
+
+        // Keep current playing track's favorite status in sync with favorite database in real-time
+        viewModelScope.launch {
+            combine(
+                playbackState.map { it.currentSong?.id }.distinctUntilChanged(),
+                favoriteSongIds
+            ) { currentId, favIds ->
+                if (currentId != null) favIds.contains(currentId) else false
+            }.collect { isFav ->
+                if (playbackState.value.currentSong?.isFavorite != isFav) {
+                    musicController.updateCurrentSongFavorite(isFav)
+                }
+            }
         }
 
         // Initial scan & explore load
@@ -217,7 +234,7 @@ class PlayerViewModel(
 
     fun toggleFavorite(song: Song) {
         viewModelScope.launch {
-            playlistRepository.toggleFavorite(song.id)
+            playlistRepository.toggleFavorite(song)
         }
     }
 

@@ -12,6 +12,7 @@ import com.victustune.player.data.model.Song
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 class PlaylistRepository(
     private val playlistDao: PlaylistDao,
@@ -70,18 +71,28 @@ class PlaylistRepository(
     }
 
     fun getFavoriteSongs(): Flow<List<Song>> {
-        return favoriteDao.getAllFavoriteSongIds().combine(audioRepository.songsFlow) { ids, songs ->
-            val songMap = songs.associateBy { it.id }
-            ids.mapNotNull { songMap[it] }
+        return favoriteDao.getAllFavorites().combine(audioRepository.songsFlow) { favEntities, localSongs ->
+            val localMap = localSongs.associateBy { it.id }
+            favEntities.map { entity ->
+                localMap[entity.songId]?.copy(isFavorite = true) ?: entity.toSong()
+            }
         }
     }
 
-    suspend fun toggleFavorite(songId: Long) {
-        val isFav = favoriteDao.isFavorite(songId).first()
+    fun getFavoriteSongIds(): Flow<Set<Long>> {
+        return favoriteDao.getAllFavoriteSongIds().map { it.toSet() }
+    }
+
+    suspend fun isFavorite(songId: Long): Boolean {
+        return favoriteDao.isFavorite(songId).first()
+    }
+
+    suspend fun toggleFavorite(song: Song) {
+        val isFav = favoriteDao.isFavorite(song.id).first()
         if (isFav) {
-            favoriteDao.removeFavorite(songId)
+            favoriteDao.removeFavorite(song.id)
         } else {
-            favoriteDao.addFavorite(FavoriteEntity(songId))
+            favoriteDao.addFavorite(FavoriteEntity.fromSong(song))
         }
     }
 

@@ -450,7 +450,8 @@ fun MainScreen(
                                 viewModel.playRemoteTracks(tracks, index)
                             },
                             onAddToQueue = { track -> viewModel.addToQueue(track.toSong()) },
-                            onAddToPlaylist = { songToAddToPlaylist = it }
+                            onAddToPlaylist = { songToAddToPlaylist = it },
+                            onToggleFavorite = { viewModel.toggleFavorite(it) }
                         )
                     }
                 }
