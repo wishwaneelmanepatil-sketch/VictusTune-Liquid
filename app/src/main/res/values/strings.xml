@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Victus Tune</string>
+    <string name="app_name">Victus Tune Liquid</string>
     <string name="playback_channel_name">Music Playback</string>
     <string name="playback_channel_description">Active media playback controls and notification</string>
 </resources>

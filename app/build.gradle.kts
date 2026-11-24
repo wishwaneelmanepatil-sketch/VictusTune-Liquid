@@ -11,7 +11,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.victustune.player"
+        applicationId = "com.victustune.liquid"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
