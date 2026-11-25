@@ -5,6 +5,7 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.victustune.player.data.auth.AuthManager
 import com.victustune.player.data.coil.AudioArtworkFetcher
 import com.victustune.player.data.coil.HighResThumbnailInterceptor
 import com.victustune.player.data.local.VictusTuneDatabase
@@ -54,15 +55,21 @@ class AppContainer(application: Application) {
         StreamResolver()
     }
 
+    val authManager: AuthManager by lazy {
+        AuthManager(application)
+    }
+
     val innerTubeClient: InnerTubeClient by lazy {
-        InnerTubeClient(okHttpClient)
+        InnerTubeClient(okHttpClient, authManager)
     }
 
     val streamingRepository: StreamingRepository by lazy {
         StreamingRepository(
             innerTubeClient = innerTubeClient,
             streamResolver = streamResolver,
-            searchHistoryDao = database.searchHistoryDao()
+            searchHistoryDao = database.searchHistoryDao(),
+            authManager = authManager,
+            syncedPlaylistDao = database.syncedPlaylistDao()
         )
     }
 
@@ -75,7 +82,36 @@ class AppContainer(application: Application) {
             database.playlistDao(),
             database.favoriteDao(),
             database.historyDao(),
-            audioRepository
+            audioRepository,
+            database.downloadedTrackDao(),
+            database.savedTrackDao()
+        )
+    }
+
+    val downloadRepository: com.victustune.player.data.repository.DownloadRepository by lazy {
+        com.victustune.player.data.repository.DownloadRepository(
+            context = application,
+            downloadedTrackDao = database.downloadedTrackDao(),
+            preferencesManager = preferencesManager,
+            okHttpClient = okHttpClient
+        )
+    }
+
+    val playlistImporter: com.victustune.player.data.transfer.PlaylistImporter by lazy {
+        com.victustune.player.data.transfer.PlaylistImporter(
+            context = application,
+            audioRepository = audioRepository,
+            streamingRepository = streamingRepository,
+            playlistRepository = playlistRepository
+        )
+    }
+
+    val playlistExporter: com.victustune.player.data.transfer.PlaylistExporter by lazy {
+        com.victustune.player.data.transfer.PlaylistExporter(
+            context = application,
+            playlistRepository = playlistRepository,
+            streamingRepository = streamingRepository,
+            downloadRepository = downloadRepository
         )
     }
 

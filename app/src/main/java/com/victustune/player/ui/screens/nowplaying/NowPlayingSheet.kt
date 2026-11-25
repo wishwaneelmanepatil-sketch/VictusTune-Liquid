@@ -1,5 +1,6 @@
 package com.victustune.player.ui.screens.nowplaying
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.model.LyricLine
 import com.victustune.player.data.model.PlaybackState
 import com.victustune.player.data.model.RepeatMode
@@ -53,10 +55,18 @@ fun NowPlayingSheet(
     onCycleRepeat: () -> Unit,
     onToggleFavorite: () -> Unit,
     onOpenQueue: () -> Unit,
+    downloadStatus: DownloadStatus = DownloadStatus.NOT_DOWNLOADED,
+    downloadProgress: Float = 0f,
+    onToggleDownload: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val song = playbackState.currentSong ?: return
     var showLyrics by remember { mutableStateOf(false) }
+
+    // If lyrics overlay is showing, back dismisses lyrics first
+    BackHandler(enabled = showLyrics) {
+        showLyrics = false
+    }
 
     var verticalDragOffset by remember { mutableFloatStateOf(0f) }
     var horizontalDragOffset by remember { mutableFloatStateOf(0f) }
@@ -233,28 +243,72 @@ fun NowPlayingSheet(
                     )
                 }
 
-                // Favorite Button
-                IconButton(
-                    onClick = onToggleFavorite,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    val isFav = song.isFavorite
-                    val heartScale by animateFloatAsState(
-                        targetValue = if (isFav) 1.15f else 1.0f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        ),
-                        label = "heartScale"
-                    )
-                    Icon(
-                        imageVector = if (isFav) Icons.Filled.Favorite else VictusIcons.FavoriteBorder,
-                        contentDescription = if (isFav) "Favorited" else "Favorite",
-                        tint = if (isFav) NeonPink else TextSecondary,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .scale(heartScale)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Download Button
+                    if (onToggleDownload != null || song.isRemote) {
+                        IconButton(
+                            onClick = { onToggleDownload?.invoke() },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            when {
+                                downloadStatus == DownloadStatus.DOWNLOADING -> {
+                                    CircularProgressIndicator(
+                                        progress = { (downloadProgress / 100f).coerceIn(0.05f, 1f) },
+                                        strokeWidth = 2.5.dp,
+                                        color = VividCyan,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                downloadStatus == DownloadStatus.QUEUED -> {
+                                    CircularProgressIndicator(
+                                        strokeWidth = 2.dp,
+                                        color = TextTertiary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                song.isDownloaded || downloadStatus == DownloadStatus.COMPLETED -> {
+                                    Icon(
+                                        imageVector = VictusIcons.DownloadDone,
+                                        contentDescription = "Downloaded",
+                                        tint = VividCyan,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                                else -> {
+                                    Icon(
+                                        imageVector = VictusIcons.Download,
+                                        contentDescription = "Download song",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Favorite Button
+                    IconButton(
+                        onClick = onToggleFavorite,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        val isFav = song.isFavorite
+                        val heartScale by animateFloatAsState(
+                            targetValue = if (isFav) 1.15f else 1.0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            ),
+                            label = "heartScale"
+                        )
+                        Icon(
+                            imageVector = if (isFav) Icons.Filled.Favorite else VictusIcons.FavoriteBorder,
+                            contentDescription = if (isFav) "Favorited" else "Favorite",
+                            tint = if (isFav) NeonPink else TextSecondary,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .scale(heartScale)
+                        )
+                    }
                 }
             }
 

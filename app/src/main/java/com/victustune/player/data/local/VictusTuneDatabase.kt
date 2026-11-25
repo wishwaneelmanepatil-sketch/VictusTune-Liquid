@@ -4,15 +4,21 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.victustune.player.data.local.dao.DownloadedTrackDao
 import com.victustune.player.data.local.dao.FavoriteDao
 import com.victustune.player.data.local.dao.HistoryDao
 import com.victustune.player.data.local.dao.PlaylistDao
+import com.victustune.player.data.local.dao.SavedTrackDao
 import com.victustune.player.data.local.dao.SearchHistoryDao
+import com.victustune.player.data.local.dao.SyncedPlaylistDao
+import com.victustune.player.data.local.entity.DownloadedTrackEntity
 import com.victustune.player.data.local.entity.FavoriteEntity
 import com.victustune.player.data.local.entity.HistoryEntity
 import com.victustune.player.data.local.entity.PlaylistEntity
 import com.victustune.player.data.local.entity.PlaylistSongCrossRef
+import com.victustune.player.data.local.entity.SavedTrackEntity
 import com.victustune.player.data.local.entity.SearchHistoryEntity
+import com.victustune.player.data.local.entity.SyncedPlaylistEntity
 
 @Database(
     entities = [
@@ -20,9 +26,12 @@ import com.victustune.player.data.local.entity.SearchHistoryEntity
         PlaylistSongCrossRef::class,
         FavoriteEntity::class,
         HistoryEntity::class,
-        SearchHistoryEntity::class
+        SearchHistoryEntity::class,
+        SyncedPlaylistEntity::class,
+        DownloadedTrackEntity::class,
+        SavedTrackEntity::class
     ],
-    version = 3,
+    version = 6,
     exportSchema = false
 )
 abstract class VictusTuneDatabase : RoomDatabase() {
@@ -30,6 +39,9 @@ abstract class VictusTuneDatabase : RoomDatabase() {
     abstract fun favoriteDao(): FavoriteDao
     abstract fun historyDao(): HistoryDao
     abstract fun searchHistoryDao(): SearchHistoryDao
+    abstract fun syncedPlaylistDao(): SyncedPlaylistDao
+    abstract fun downloadedTrackDao(): DownloadedTrackDao
+    abstract fun savedTrackDao(): SavedTrackDao
 
     companion object {
         @Volatile

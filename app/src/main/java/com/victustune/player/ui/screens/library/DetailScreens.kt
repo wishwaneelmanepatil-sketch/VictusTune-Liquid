@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.model.Song
 import com.victustune.player.ui.components.TrackItem
 import com.victustune.player.ui.theme.*
@@ -42,6 +43,11 @@ fun DetailScreen(
     onPlayNext: (Song) -> Unit,
     onAddToQueue: (Song) -> Unit,
     onAddToPlaylist: (Song) -> Unit,
+    onDownloadAll: (() -> Unit)? = null,
+    downloadStates: Map<String, DownloadStatus> = emptyMap(),
+    downloadProgress: Map<String, Float> = emptyMap(),
+    onToggleDownload: ((Song) -> Unit)? = null,
+    onExportPlaylist: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -68,8 +74,17 @@ fun DetailScreen(
                 style = MaterialTheme.typography.titleMedium,
                 color = TextPrimary,
                 maxLines = 1,
-                modifier = Modifier.padding(start = 8.dp)
+                modifier = Modifier.weight(1f).padding(start = 8.dp)
             )
+            if (onExportPlaylist != null) {
+                IconButton(onClick = onExportPlaylist) {
+                    Icon(
+                        imageVector = VictusIcons.ExportPlaylist,
+                        contentDescription = "Export Playlist",
+                        tint = VividCyan
+                    )
+                }
+            }
         }
 
         LazyColumn(
@@ -119,13 +134,14 @@ fun DetailScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Button(
                             onClick = onPlayAll,
                             colors = ButtonDefaults.buttonColors(containerColor = ElectricPurple),
                             shape = RoundedCornerShape(24.dp),
-                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp)
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                         ) {
                             Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                             Spacer(modifier = Modifier.width(6.dp))
@@ -136,11 +152,24 @@ fun DetailScreen(
                             onClick = onShuffleAll,
                             colors = ButtonDefaults.buttonColors(containerColor = DarkSurfaceVariant),
                             shape = RoundedCornerShape(24.dp),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
                         ) {
                             Icon(VictusIcons.Shuffle, contentDescription = null, tint = VividCyan)
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Shuffle", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        if (onDownloadAll != null) {
+                            OutlinedButton(
+                                onClick = onDownloadAll,
+                                shape = RoundedCornerShape(24.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = VividCyan)
+                            ) {
+                                Icon(VictusIcons.Download, contentDescription = null, tint = VividCyan, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Download All", fontSize = 13.sp)
+                            }
                         }
                     }
                 }
@@ -148,6 +177,9 @@ fun DetailScreen(
 
             // Track List
             items(songs, key = { it.id }) { song ->
+                val videoId = song.remoteVideoId ?: song.id.toString()
+                val status = downloadStates[videoId] ?: (if (song.isDownloaded) DownloadStatus.COMPLETED else DownloadStatus.NOT_DOWNLOADED)
+                val progress = downloadProgress[videoId] ?: 0f
                 TrackItem(
                     song = song,
                     isPlayingCurrent = song.id == currentPlayingSongId,
@@ -155,7 +187,10 @@ fun DetailScreen(
                     onToggleFavorite = { onToggleFavorite(song) },
                     onPlayNext = { onPlayNext(song) },
                     onAddToQueue = { onAddToQueue(song) },
-                    onAddToPlaylist = { onAddToPlaylist(song) }
+                    onAddToPlaylist = { onAddToPlaylist(song) },
+                    downloadStatus = status,
+                    downloadProgress = progress,
+                    onToggleDownload = { onToggleDownload?.invoke(song) }
                 )
             }
 

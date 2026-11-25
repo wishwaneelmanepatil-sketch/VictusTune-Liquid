@@ -1,5 +1,8 @@
 package com.victustune.player.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -19,10 +22,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.model.*
+import com.victustune.player.data.transfer.ExportFormat
 import com.victustune.player.ui.components.FloatingNavDock
 import com.victustune.player.ui.components.MiniPlayer
 import com.victustune.player.ui.components.NavDockItem
+import com.victustune.player.ui.screens.auth.LoginScreen
 import com.victustune.player.ui.screens.explore.ExploreScreen
 import com.victustune.player.ui.screens.explore.RemoteDetailScreen
 import com.victustune.player.ui.screens.extras.EqualizerScreen
@@ -33,6 +39,8 @@ import com.victustune.player.ui.screens.nowplaying.NowPlayingSheet
 import com.victustune.player.ui.screens.nowplaying.QueueBottomSheet
 import com.victustune.player.ui.screens.search.SearchScreen
 import com.victustune.player.ui.theme.*
+import com.victustune.player.ui.viewmodel.ExportTarget
+import com.victustune.player.ui.viewmodel.ImportDialogState
 import com.victustune.player.ui.viewmodel.PlayerViewModel
 
 enum class MainTab(val title: String) {
@@ -40,13 +48,15 @@ enum class MainTab(val title: String) {
     TRACKS("Tracks"),
     ALBUMS("Albums"),
     ARTISTS("Artists"),
-    PLAYLISTS("Playlists")
+    PLAYLISTS("Playlists"),
+    DOWNLOADS("Downloads")
 }
 
 sealed class SubScreen {
     object Main : SubScreen()
     object Search : SubScreen()
     object Equalizer : SubScreen()
+    object Login : SubScreen()
     data class AlbumDetail(val album: Album) : SubScreen()
     data class ArtistDetail(val artist: Artist) : SubScreen()
     data class PlaylistDetail(val playlist: Playlist) : SubScreen()
@@ -81,15 +91,164 @@ fun MainScreen(
     val currentCacheBytes by viewModel.currentCacheBytes.collectAsStateWithLifecycle()
     val maxCacheSizeMb by viewModel.maxCacheSizeMb.collectAsStateWithLifecycle()
 
+    val authState by viewModel.authState.collectAsStateWithLifecycle()
+    val syncedPlaylists by viewModel.syncedPlaylists.collectAsStateWithLifecycle()
+    val isSyncingPlaylists by viewModel.isSyncingPlaylists.collectAsStateWithLifecycle()
+
+    val downloadedSongs by viewModel.downloadedSongs.collectAsStateWithLifecycle()
+    val allDownloads by viewModel.allDownloads.collectAsStateWithLifecycle()
+    val downloadStates by viewModel.downloadStates.collectAsStateWithLifecycle()
+    val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
+    val totalDownloadSizeBytes by viewModel.totalDownloadSizeBytes.collectAsStateWithLifecycle()
+    val downloadWifiOnly by viewModel.downloadWifiOnly.collectAsStateWithLifecycle()
+    val downloadQuality by viewModel.downloadQuality.collectAsStateWithLifecycle()
+    val importDialogState by viewModel.importDialogState.collectAsStateWithLifecycle()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        viewModel.transferMessage.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    // SAF Import launcher
+    val importDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.preparePlaylistImport(uri)
+        }
+    }
+
+    // Export Format Picker & SAF CreateDocument launchers
+    var exportTarget by remember { mutableStateOf<ExportTarget?>(null) }
+    var pendingExportTarget by remember { mutableStateOf<ExportTarget?>(null) }
+
+    val createCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(ExportFormat.CSV.mimeType)
+    ) { uri ->
+        val target = pendingExportTarget
+        pendingExportTarget = null
+        if (uri != null && target != null) {
+            viewModel.exportPlaylist(target, uri, ExportFormat.CSV)
+        }
+    }
+
+    val createM3u8Launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(ExportFormat.M3U8.mimeType)
+    ) { uri ->
+        val target = pendingExportTarget
+        pendingExportTarget = null
+        if (uri != null && target != null) {
+            viewModel.exportPlaylist(target, uri, ExportFormat.M3U8)
+        }
+    }
+
+    fun launchImportPicker() {
+        importDocumentLauncher.launch(
+            arrayOf(
+                "text/csv",
+                "text/comma-separated-values",
+                "audio/x-mpegurl",
+                "application/vnd.apple.mpegurl",
+                "text/plain"
+            )
+        )
+    }
+
+    fun launchExportCreateDocument(target: ExportTarget, format: ExportFormat) {
+        pendingExportTarget = target
+        val safeName = target.displayName
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            .trim()
+            .ifEmpty { "playlist" }
+        val fileName = "$safeName.${format.extension}"
+        when (format) {
+            ExportFormat.CSV -> createCsvLauncher.launch(fileName)
+            ExportFormat.M3U8 -> createM3u8Launcher.launch(fileName)
+        }
+    }
+
     var currentTab by remember { mutableStateOf(MainTab.EXPLORE) }
-    var currentSubScreen by remember { mutableStateOf<SubScreen>(SubScreen.Main) }
+    val backStack = remember { mutableStateListOf<SubScreen>() }
+    val currentSubScreen = backStack.lastOrNull() ?: SubScreen.Main
+
     var isNowPlayingExpanded by remember { mutableStateOf(false) }
     var isQueueOpen by remember { mutableStateOf(false) }
     var isSleepTimerOpen by remember { mutableStateOf(false) }
     var isSettingsOpen by remember { mutableStateOf(false) }
+    var isSearchQueryActive by remember { mutableStateOf(false) }
 
     // Add to playlist picker dialog state
     var songToAddToPlaylist by remember { mutableStateOf<Song?>(null) }
+
+    fun navigateTo(subScreen: SubScreen) {
+        if (subScreen is SubScreen.Main) {
+            backStack.clear()
+        } else {
+            if (backStack.lastOrNull() != subScreen) {
+                backStack.add(subScreen)
+            }
+        }
+    }
+
+    fun navigateBack(): Boolean {
+        if (backStack.isNotEmpty()) {
+            backStack.removeAt(backStack.lastIndex)
+            return true
+        }
+        return false
+    }
+
+    // --- Back Navigation Priority Hierarchy ---
+
+    // 1. Dialogs & Bottom Sheets: Close any open Queue sheet, Equalizer panel, Track options menu, or Playlist picker first.
+    val hasActiveDialogOrSheet = songToAddToPlaylist != null ||
+            isSleepTimerOpen ||
+            isSettingsOpen ||
+            isQueueOpen ||
+            importDialogState !is ImportDialogState.Idle ||
+            exportTarget != null
+
+    BackHandler(enabled = songToAddToPlaylist != null) {
+        songToAddToPlaylist = null
+    }
+
+    BackHandler(enabled = isSleepTimerOpen) {
+        isSleepTimerOpen = false
+    }
+
+    BackHandler(enabled = isSettingsOpen) {
+        isSettingsOpen = false
+    }
+
+    BackHandler(enabled = isQueueOpen) {
+        isQueueOpen = false
+    }
+
+    // 2. Now Playing Screen: If full-screen Now Playing is expanded, Back collapses it back down to Mini-Player
+    BackHandler(enabled = isNowPlayingExpanded && !hasActiveDialogOrSheet) {
+        isNowPlayingExpanded = false
+    }
+
+    // 4. Detail Screens: Pop back to previous screen (SearchScreen's own BackHandler handles active query/focus first as Priority 3)
+    BackHandler(
+        enabled = backStack.isNotEmpty() && !isNowPlayingExpanded && !hasActiveDialogOrSheet &&
+                !(currentSubScreen is SubScreen.Search && isSearchQueryActive)
+    ) {
+        navigateBack()
+    }
+
+    // 5. Secondary Tabs: If on a non-home tab (Tracks, Albums, Artists, Playlists), navigate back to Home/Start tab (Explore)
+    BackHandler(
+        enabled = backStack.isEmpty() && currentTab != MainTab.EXPLORE && !isNowPlayingExpanded && !hasActiveDialogOrSheet
+    ) {
+        currentTab = MainTab.EXPLORE
+    }
+
+    // 6. Home Tab (Root):
+    // When backStack is empty, currentTab is MainTab.EXPLORE, and no overlays/dialogs are open,
+    // all BackHandlers above are disabled. The system Android Back naturally exits/minimizes the app.
 
     // Dynamic accent color extracted from current playing track cover art!
     val accentColor by rememberDynamicAccentColor(playbackState.currentSong?.albumArtUri)
@@ -132,7 +291,7 @@ fun MainScreen(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Search Button
-                        IconButton(onClick = { currentSubScreen = SubScreen.Search }) {
+                        IconButton(onClick = { navigateTo(SubScreen.Search) }) {
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = "Search",
@@ -150,7 +309,7 @@ fun MainScreen(
                         }
 
                         // Equalizer Button
-                        IconButton(onClick = { currentSubScreen = SubScreen.Equalizer }) {
+                        IconButton(onClick = { navigateTo(SubScreen.Equalizer) }) {
                             Icon(
                                 imageVector = VictusIcons.Tune,
                                 contentDescription = "Equalizer",
@@ -221,28 +380,28 @@ fun MainScreen(
                                 onRetry = { viewModel.loadExploreFeed() },
                                 onTrackClick = { viewModel.playRemoteTrack(it) },
                                 onAlbumClick = { album ->
-                                    currentSubScreen = SubScreen.RemoteDetail(
+                                    navigateTo(SubScreen.RemoteDetail(
                                         browseId = album.browseId,
                                         title = album.title,
                                         subtitle = album.artist,
                                         thumbnailUrl = album.thumbnailUrl
-                                    )
+                                    ))
                                 },
                                 onArtistClick = { artist ->
-                                    currentSubScreen = SubScreen.RemoteDetail(
+                                    navigateTo(SubScreen.RemoteDetail(
                                         browseId = artist.browseId,
                                         title = artist.name,
                                         subtitle = "Artist",
                                         thumbnailUrl = artist.thumbnailUrl
-                                    )
+                                    ))
                                 },
                                 onPlaylistClick = { playlist ->
-                                    currentSubScreen = SubScreen.RemoteDetail(
+                                    navigateTo(SubScreen.RemoteDetail(
                                         browseId = playlist.browseId,
                                         title = playlist.title,
                                         subtitle = playlist.author,
                                         thumbnailUrl = playlist.thumbnailUrl
-                                    )
+                                    ))
                                 }
                             )
                             MainTab.TRACKS -> TracksScreen(
@@ -262,31 +421,80 @@ fun MainScreen(
                                 onAddToPlaylist = { songToAddToPlaylist = it },
                                 onGoToAlbum = { albumId ->
                                     albums.find { it.id == albumId }?.let {
-                                        currentSubScreen = SubScreen.AlbumDetail(it)
+                                        navigateTo(SubScreen.AlbumDetail(it))
                                     }
                                 },
                                 onGoToArtist = { artistName ->
                                     artists.find { it.name == artistName }?.let {
-                                        currentSubScreen = SubScreen.ArtistDetail(it)
+                                        navigateTo(SubScreen.ArtistDetail(it))
+                                    }
+                                },
+                                downloadStates = downloadStates,
+                                downloadProgress = downloadProgress,
+                                onToggleDownload = { song ->
+                                    val vid = song.remoteVideoId ?: song.id.toString()
+                                    if (downloadStates[vid] == DownloadStatus.COMPLETED || song.isDownloaded) {
+                                        viewModel.removeDownload(vid)
+                                    } else {
+                                        viewModel.downloadSong(song)
                                     }
                                 }
                             )
                             MainTab.ALBUMS -> AlbumsScreen(
                                 albums = albums,
-                                onAlbumClick = { currentSubScreen = SubScreen.AlbumDetail(it) }
+                                onAlbumClick = { navigateTo(SubScreen.AlbumDetail(it)) }
                             )
                             MainTab.ARTISTS -> ArtistsScreen(
                                 artists = artists,
-                                onArtistClick = { currentSubScreen = SubScreen.ArtistDetail(it) }
+                                onArtistClick = { navigateTo(SubScreen.ArtistDetail(it)) }
                             )
                             MainTab.PLAYLISTS -> PlaylistsScreen(
                                 playlists = playlists,
                                 favoriteSongs = favoriteSongs,
-                                onOpenFavorites = { currentSubScreen = SubScreen.FavoritesDetail },
-                                onPlaylistClick = { currentSubScreen = SubScreen.PlaylistDetail(it) },
+                                onOpenFavorites = { navigateTo(SubScreen.FavoritesDetail) },
+                                onPlaylistClick = { navigateTo(SubScreen.PlaylistDetail(it)) },
                                 onCreatePlaylist = { viewModel.createPlaylist(it) },
                                 onRenamePlaylist = { id, name -> viewModel.renamePlaylist(id, name) },
-                                onDeletePlaylist = { viewModel.deletePlaylist(it) }
+                                onDeletePlaylist = { viewModel.deletePlaylist(it) },
+                                syncedPlaylists = syncedPlaylists,
+                                authState = authState,
+                                isSyncingPlaylists = isSyncingPlaylists,
+                                onRemotePlaylistClick = { playlist ->
+                                    navigateTo(SubScreen.RemoteDetail(
+                                        browseId = playlist.browseId,
+                                        title = playlist.title,
+                                        subtitle = playlist.author,
+                                        thumbnailUrl = playlist.thumbnailUrl
+                                    ))
+                                },
+                                onSyncPlaylists = { viewModel.syncPlaylists() },
+                                onOpenLogin = { navigateTo(SubScreen.Login) },
+                                onOpenDownloads = { currentTab = MainTab.DOWNLOADS },
+                                downloadedCount = downloadedSongs.size,
+                                onImportPlaylistClick = { launchImportPicker() },
+                                onExportLocalPlaylist = { exportTarget = ExportTarget.LocalPlaylist(it) },
+                                onExportFavorites = { exportTarget = ExportTarget.Favorites },
+                                onExportDownloads = { exportTarget = ExportTarget.Downloads },
+                                onExportRemotePlaylist = { exportTarget = ExportTarget.RemotePlaylistTarget(it) }
+                            )
+                            MainTab.DOWNLOADS -> DownloadsScreen(
+                                downloadedSongs = downloadedSongs,
+                                allDownloads = allDownloads,
+                                downloadStates = downloadStates,
+                                downloadProgress = downloadProgress,
+                                totalSizeBytes = totalDownloadSizeBytes,
+                                currentPlayingSongId = playbackState.currentSong?.id,
+                                onPlaySong = { song, list -> viewModel.playSong(song, list) },
+                                onPlayAll = { list -> viewModel.playQueue(list, 0) },
+                                onShuffleAll = { list ->
+                                    viewModel.playQueue(list.shuffled(), 0)
+                                    viewModel.toggleShuffle()
+                                },
+                                onToggleFavorite = { viewModel.toggleFavorite(it) },
+                                onPlayNext = { viewModel.playSongNext(it) },
+                                onAddToQueue = { viewModel.addToQueue(it) },
+                                onAddToPlaylist = { songToAddToPlaylist = it },
+                                onRemoveDownload = { viewModel.removeDownload(it) }
                             )
                         }
                     }
@@ -296,7 +504,7 @@ fun MainScreen(
                             currentPlayingSongId = playbackState.currentSong?.id,
                             recentSearches = recentSearches,
                             onlineSearchState = onlineSearchState,
-                            onBack = { currentSubScreen = SubScreen.Main },
+                            onBack = { navigateBack() },
                             onPerformSearch = { query, filter ->
                                 viewModel.searchOnline(query, filter)
                             },
@@ -305,28 +513,28 @@ fun MainScreen(
                             onSongClick = { viewModel.playSong(it, songs) },
                             onRemoteTrackClick = { viewModel.playRemoteTrack(it) },
                             onRemoteAlbumClick = { album ->
-                                currentSubScreen = SubScreen.RemoteDetail(
+                                navigateTo(SubScreen.RemoteDetail(
                                     browseId = album.browseId,
                                     title = album.title,
                                     subtitle = album.artist,
                                     thumbnailUrl = album.thumbnailUrl
-                                )
+                                ))
                             },
                             onRemoteArtistClick = { artist ->
-                                currentSubScreen = SubScreen.RemoteDetail(
+                                navigateTo(SubScreen.RemoteDetail(
                                     browseId = artist.browseId,
                                     title = artist.name,
                                     subtitle = "Artist",
                                     thumbnailUrl = artist.thumbnailUrl
-                                )
+                                ))
                             },
                             onRemotePlaylistClick = { playlist ->
-                                currentSubScreen = SubScreen.RemoteDetail(
+                                navigateTo(SubScreen.RemoteDetail(
                                     browseId = playlist.browseId,
                                     title = playlist.title,
                                     subtitle = playlist.author,
                                     thumbnailUrl = playlist.thumbnailUrl
-                                )
+                                ))
                             },
                             onToggleFavorite = { viewModel.toggleFavorite(it) },
                             onPlayNext = { viewModel.playSongNext(it) },
@@ -334,12 +542,24 @@ fun MainScreen(
                             onAddToPlaylist = { songToAddToPlaylist = it },
                             onGoToAlbum = { albumId ->
                                 albums.find { it.id == albumId }?.let {
-                                    currentSubScreen = SubScreen.AlbumDetail(it)
+                                    navigateTo(SubScreen.AlbumDetail(it))
                                 }
                             },
                             onGoToArtist = { artistName ->
                                 artists.find { it.name == artistName }?.let {
-                                    currentSubScreen = SubScreen.ArtistDetail(it)
+                                    navigateTo(SubScreen.ArtistDetail(it))
+                                }
+                            },
+                            onQueryActiveChange = { isSearchQueryActive = it },
+                            isOverlayActive = isNowPlayingExpanded || hasActiveDialogOrSheet,
+                            downloadStates = downloadStates,
+                            downloadProgress = downloadProgress,
+                            onToggleDownload = { song ->
+                                val vid = song.remoteVideoId ?: song.id.toString()
+                                if (downloadStates[vid] == DownloadStatus.COMPLETED || song.isDownloaded) {
+                                    viewModel.removeDownload(vid)
+                                } else {
+                                    viewModel.downloadSong(song)
                                 }
                             },
                             modifier = Modifier.statusBarsPadding()
@@ -348,8 +568,17 @@ fun MainScreen(
                     is SubScreen.Equalizer -> {
                         EqualizerScreen(
                             equalizerController = viewModel.equalizerController,
-                            onBack = { currentSubScreen = SubScreen.Main },
+                            onBack = { navigateBack() },
                             modifier = Modifier.statusBarsPadding()
+                        )
+                    }
+                    is SubScreen.Login -> {
+                        LoginScreen(
+                            onBack = { navigateBack() },
+                            onLoginSuccess = { cookieString ->
+                                viewModel.handleLoginSuccess(cookieString)
+                                navigateBack()
+                            }
                         )
                     }
                     is SubScreen.AlbumDetail -> {
@@ -362,7 +591,7 @@ fun MainScreen(
                             artworkUri = sub.album.albumArtUri,
                             songs = albumSongs,
                             currentPlayingSongId = playbackState.currentSong?.id,
-                            onBack = { currentSubScreen = SubScreen.Main },
+                            onBack = { navigateBack() },
                             onPlayAll = { viewModel.playQueue(albumSongs, 0) },
                             onShuffleAll = { viewModel.playQueue(albumSongs.shuffled(), 0) },
                             onSongClick = { viewModel.playSong(it, albumSongs) },
@@ -370,6 +599,17 @@ fun MainScreen(
                             onPlayNext = { viewModel.playSongNext(it) },
                             onAddToQueue = { viewModel.addToQueue(it) },
                             onAddToPlaylist = { songToAddToPlaylist = it },
+                            onDownloadAll = { viewModel.downloadAll(albumSongs) },
+                            downloadStates = downloadStates,
+                            downloadProgress = downloadProgress,
+                            onToggleDownload = { song ->
+                                val vid = song.remoteVideoId ?: song.id.toString()
+                                if (downloadStates[vid] == DownloadStatus.COMPLETED || song.isDownloaded) {
+                                    viewModel.removeDownload(vid)
+                                } else {
+                                    viewModel.downloadSong(song)
+                                }
+                            },
                             modifier = Modifier.statusBarsPadding()
                         )
                     }
@@ -383,7 +623,7 @@ fun MainScreen(
                             artworkUri = artistSongs.firstOrNull()?.albumArtUri,
                             songs = artistSongs,
                             currentPlayingSongId = playbackState.currentSong?.id,
-                            onBack = { currentSubScreen = SubScreen.Main },
+                            onBack = { navigateBack() },
                             onPlayAll = { viewModel.playQueue(artistSongs, 0) },
                             onShuffleAll = { viewModel.playQueue(artistSongs.shuffled(), 0) },
                             onSongClick = { viewModel.playSong(it, artistSongs) },
@@ -391,6 +631,17 @@ fun MainScreen(
                             onPlayNext = { viewModel.playSongNext(it) },
                             onAddToQueue = { viewModel.addToQueue(it) },
                             onAddToPlaylist = { songToAddToPlaylist = it },
+                            onDownloadAll = { viewModel.downloadAll(artistSongs) },
+                            downloadStates = downloadStates,
+                            downloadProgress = downloadProgress,
+                            onToggleDownload = { song ->
+                                val vid = song.remoteVideoId ?: song.id.toString()
+                                if (downloadStates[vid] == DownloadStatus.COMPLETED || song.isDownloaded) {
+                                    viewModel.removeDownload(vid)
+                                } else {
+                                    viewModel.downloadSong(song)
+                                }
+                            },
                             modifier = Modifier.statusBarsPadding()
                         )
                     }
@@ -406,7 +657,7 @@ fun MainScreen(
                             artworkUri = plSongs.firstOrNull()?.albumArtUri,
                             songs = plSongs,
                             currentPlayingSongId = playbackState.currentSong?.id,
-                            onBack = { currentSubScreen = SubScreen.Main },
+                            onBack = { navigateBack() },
                             onPlayAll = { viewModel.playQueue(plSongs, 0) },
                             onShuffleAll = { viewModel.playQueue(plSongs.shuffled(), 0) },
                             onSongClick = { viewModel.playSong(it, plSongs) },
@@ -414,6 +665,18 @@ fun MainScreen(
                             onPlayNext = { viewModel.playSongNext(it) },
                             onAddToQueue = { viewModel.addToQueue(it) },
                             onAddToPlaylist = { songToAddToPlaylist = it },
+                            onDownloadAll = { viewModel.downloadAll(plSongs) },
+                            downloadStates = downloadStates,
+                            downloadProgress = downloadProgress,
+                            onToggleDownload = { song ->
+                                val vid = song.remoteVideoId ?: song.id.toString()
+                                if (downloadStates[vid] == DownloadStatus.COMPLETED || song.isDownloaded) {
+                                    viewModel.removeDownload(vid)
+                                } else {
+                                    viewModel.downloadSong(song)
+                                }
+                            },
+                            onExportPlaylist = { exportTarget = ExportTarget.LocalPlaylist(sub.playlist) },
                             modifier = Modifier.statusBarsPadding()
                         )
                     }
@@ -424,7 +687,7 @@ fun MainScreen(
                             artworkUri = favoriteSongs.firstOrNull()?.albumArtUri,
                             songs = favoriteSongs,
                             currentPlayingSongId = playbackState.currentSong?.id,
-                            onBack = { currentSubScreen = SubScreen.Main },
+                            onBack = { navigateBack() },
                             onPlayAll = { viewModel.playQueue(favoriteSongs, 0) },
                             onShuffleAll = { viewModel.playQueue(favoriteSongs.shuffled(), 0) },
                             onSongClick = { viewModel.playSong(it, favoriteSongs) },
@@ -432,6 +695,18 @@ fun MainScreen(
                             onPlayNext = { viewModel.playSongNext(it) },
                             onAddToQueue = { viewModel.addToQueue(it) },
                             onAddToPlaylist = { songToAddToPlaylist = it },
+                            onDownloadAll = { viewModel.downloadAll(favoriteSongs) },
+                            downloadStates = downloadStates,
+                            downloadProgress = downloadProgress,
+                            onToggleDownload = { song ->
+                                val vid = song.remoteVideoId ?: song.id.toString()
+                                if (downloadStates[vid] == DownloadStatus.COMPLETED || song.isDownloaded) {
+                                    viewModel.removeDownload(vid)
+                                } else {
+                                    viewModel.downloadSong(song)
+                                }
+                            },
+                            onExportPlaylist = { exportTarget = ExportTarget.Favorites },
                             modifier = Modifier.statusBarsPadding()
                         )
                     }
@@ -441,7 +716,7 @@ fun MainScreen(
                             initialTitle = sub.title,
                             initialSubtitle = sub.subtitle,
                             initialThumbnailUrl = sub.thumbnailUrl,
-                            onBack = { currentSubScreen = SubScreen.Main },
+                            onBack = { navigateBack() },
                             loadDetail = { id -> viewModel.loadBrowseDetail(id) },
                             onPlayAll = { tracks -> viewModel.playRemoteTracks(tracks, 0) },
                             onShuffleAll = { tracks -> viewModel.playRemoteTracks(tracks.shuffled(), 0) },
@@ -451,7 +726,22 @@ fun MainScreen(
                             },
                             onAddToQueue = { track -> viewModel.addToQueue(track.toSong()) },
                             onAddToPlaylist = { songToAddToPlaylist = it },
-                            onToggleFavorite = { viewModel.toggleFavorite(it) }
+                            onToggleFavorite = { viewModel.toggleFavorite(it) },
+                            onDownloadAll = { tracks -> viewModel.downloadAll(tracks.map { it.toSong() }) },
+                            downloadStates = downloadStates,
+                            downloadProgress = downloadProgress,
+                            onToggleDownload = { track ->
+                                val song = track.toSong()
+                                val vid = track.videoId
+                                if (downloadStates[vid] == DownloadStatus.COMPLETED) {
+                                    viewModel.removeDownload(vid)
+                                } else {
+                                    viewModel.downloadSong(song)
+                                }
+                            },
+                            onExportPlaylist = { title, tracks ->
+                                exportTarget = ExportTarget.CustomList(title, tracks.map { it.toSong() })
+                            }
                         )
                     }
                 }
@@ -459,7 +749,7 @@ fun MainScreen(
         }
 
         // Persistent Mini-Player floating docked above the navigation dock
-        if (playbackState.currentSong != null && !isNowPlayingExpanded) {
+        if (playbackState.currentSong != null && !isNowPlayingExpanded && currentSubScreen !is SubScreen.Login) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -478,7 +768,7 @@ fun MainScreen(
         }
 
         // Floating Navigation Dock (Home, Search, Library, Playlists)
-        if (!isNowPlayingExpanded) {
+        if (!isNowPlayingExpanded && currentSubScreen !is SubScreen.Login) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -492,20 +782,22 @@ fun MainScreen(
                     onItemSelected = { item ->
                         when (item) {
                             NavDockItem.HOME -> {
-                                currentSubScreen = SubScreen.Main
+                                backStack.clear()
                                 currentTab = MainTab.EXPLORE
                             }
                             NavDockItem.SEARCH -> {
-                                currentSubScreen = SubScreen.Search
+                                if (currentSubScreen !is SubScreen.Search) {
+                                    navigateTo(SubScreen.Search)
+                                }
                             }
                             NavDockItem.LIBRARY -> {
-                                currentSubScreen = SubScreen.Main
-                                if (currentTab != MainTab.TRACKS && currentTab != MainTab.ALBUMS && currentTab != MainTab.ARTISTS) {
+                                backStack.clear()
+                                if (currentTab != MainTab.TRACKS && currentTab != MainTab.ALBUMS && currentTab != MainTab.ARTISTS && currentTab != MainTab.DOWNLOADS) {
                                     currentTab = MainTab.TRACKS
                                 }
                             }
                             NavDockItem.PLAYLISTS -> {
-                                currentSubScreen = SubScreen.Main
+                                backStack.clear()
                                 currentTab = MainTab.PLAYLISTS
                             }
                         }
@@ -540,7 +832,25 @@ fun MainScreen(
                 onToggleFavorite = {
                     playbackState.currentSong?.let { viewModel.toggleFavorite(it) }
                 },
-                onOpenQueue = { isQueueOpen = true }
+                onOpenQueue = { isQueueOpen = true },
+                downloadStatus = playbackState.currentSong?.let { s ->
+                    val vid = s.remoteVideoId ?: s.id.toString()
+                    downloadStates[vid] ?: if (s.isDownloaded) DownloadStatus.COMPLETED else DownloadStatus.NOT_DOWNLOADED
+                } ?: DownloadStatus.NOT_DOWNLOADED,
+                downloadProgress = playbackState.currentSong?.let { s ->
+                    val vid = s.remoteVideoId ?: s.id.toString()
+                    downloadProgress[vid] ?: 0f
+                } ?: 0f,
+                onToggleDownload = {
+                    playbackState.currentSong?.let { song ->
+                        val vid = song.remoteVideoId ?: song.id.toString()
+                        if (downloadStates[vid] == DownloadStatus.COMPLETED || song.isDownloaded) {
+                            viewModel.removeDownload(vid)
+                        } else {
+                            viewModel.downloadSong(song)
+                        }
+                    }
+                }
             )
         }
 
@@ -582,6 +892,17 @@ fun MainScreen(
                 maxCacheSizeMb = maxCacheSizeMb,
                 onSelectMaxCacheSizeMb = { viewModel.setMaxCacheSizeMb(it) },
                 onClearCache = { viewModel.clearCache() },
+                authState = authState,
+                isSyncingPlaylists = isSyncingPlaylists,
+                onOpenLogin = { navigateTo(SubScreen.Login) },
+                onSyncPlaylists = { viewModel.syncPlaylists() },
+                onSignOut = { viewModel.signOut() },
+                totalDownloadSizeBytes = totalDownloadSizeBytes,
+                downloadQuality = downloadQuality,
+                onSelectDownloadQuality = { viewModel.setDownloadQuality(it) },
+                downloadWifiOnly = downloadWifiOnly,
+                onToggleDownloadWifiOnly = { viewModel.setDownloadWifiOnly(it) },
+                onDeleteAllDownloads = { viewModel.removeAllDownloads() },
                 onDismiss = { isSettingsOpen = false }
             )
         }
@@ -599,7 +920,7 @@ fun MainScreen(
                             playlists.forEach { pl ->
                                 OutlinedButton(
                                     onClick = {
-                                        viewModel.addSongToPlaylist(pl.id, targetSong.id)
+                                        viewModel.addSongToPlaylist(pl.id, targetSong)
                                         songToAddToPlaylist = null
                                     },
                                     modifier = Modifier.fillMaxWidth(),
@@ -618,6 +939,48 @@ fun MainScreen(
                     }
                 },
                 containerColor = DarkSurface
+            )
+        }
+
+        // Playlist Import Dialogs (Parsing / Preview / Progress / Summary / Error)
+        PlaylistImportDialogs(
+            state = importDialogState,
+            onStartImport = { name, matchOnline ->
+                viewModel.startPlaylistImport(name, matchOnline)
+            },
+            onCancelImport = { viewModel.cancelPlaylistImport() },
+            onDismiss = { viewModel.dismissImportDialog() },
+            onOpenPlaylist = { playlist ->
+                currentTab = MainTab.PLAYLISTS
+                navigateTo(SubScreen.PlaylistDetail(playlist))
+            }
+        )
+
+        // Playlist Export Format Picker Dialog (CSV vs M3U8)
+        exportTarget?.let { target ->
+            ExportFormatPickerDialog(
+                target = target,
+                onSelectFormat = { format ->
+                    exportTarget = null
+                    launchExportCreateDocument(target, format)
+                },
+                onDismiss = { exportTarget = null }
+            )
+        }
+
+        // Transfer Feedback Snackbar
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 148.dp, start = 16.dp, end = 16.dp)
+        ) { data ->
+            Snackbar(
+                snackbarData = data,
+                containerColor = DarkSurfaceVariant,
+                contentColor = TextPrimary,
+                actionColor = VividCyan
             )
         }
     }

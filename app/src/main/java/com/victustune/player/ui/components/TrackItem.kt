@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.model.Song
 import com.victustune.player.ui.theme.*
 
@@ -34,11 +35,15 @@ fun TrackItem(
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
     onAddToPlaylist: () -> Unit,
+    downloadStatus: DownloadStatus = DownloadStatus.NOT_DOWNLOADED,
+    downloadProgress: Float = 0f,
+    onToggleDownload: (() -> Unit)? = null,
     onGoToAlbum: (() -> Unit)? = null,
     onGoToArtist: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val isItemDownloaded = song.isDownloaded || downloadStatus == DownloadStatus.COMPLETED
 
     Row(
         modifier = modifier
@@ -90,6 +95,40 @@ fun TrackItem(
         }
 
         Spacer(modifier = Modifier.width(8.dp))
+
+        // Download Status Indicator
+        when {
+            downloadStatus == DownloadStatus.DOWNLOADING -> {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(24.dp)) {
+                    CircularProgressIndicator(
+                        progress = { (downloadProgress / 100f).coerceIn(0.05f, 1f) },
+                        strokeWidth = 2.dp,
+                        color = VividCyan,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            downloadStatus == DownloadStatus.QUEUED -> {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(24.dp)) {
+                    CircularProgressIndicator(
+                        strokeWidth = 2.dp,
+                        color = TextTertiary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            isItemDownloaded -> {
+                Icon(
+                    imageVector = VictusIcons.DownloadDone,
+                    contentDescription = "Downloaded",
+                    tint = VividCyan,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+        }
 
         // Duration text
         Text(
@@ -151,6 +190,21 @@ fun TrackItem(
                         onAddToPlaylist()
                     }
                 )
+                if (onToggleDownload != null || song.isRemote) {
+                    val isDl = isItemDownloaded
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = if (isDl) "Remove Download" else "Download",
+                                color = if (isDl) Color(0xFFFF5252) else VividCyan
+                            )
+                        },
+                        onClick = {
+                            showMenu = false
+                            onToggleDownload?.invoke()
+                        }
+                    )
+                }
                 if (onGoToAlbum != null) {
                     DropdownMenuItem(
                         text = { Text("Go to Album", color = TextPrimary) },

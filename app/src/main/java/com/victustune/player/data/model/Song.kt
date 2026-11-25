@@ -26,6 +26,7 @@ data class Song(
     val dateAdded: Long = 0L,
     val sizeBytes: Long = 0L,
     val isFavorite: Boolean = false,
+    val isDownloaded: Boolean = false,
     val source: TrackSource = TrackSource.Local(contentUri)
 ) {
     val isRemote: Boolean
@@ -50,7 +51,8 @@ data class Song(
             album: String = "Online Stream",
             durationMs: Long = 0L,
             thumbnailUrl: String? = null,
-            channelId: String? = null
+            channelId: String? = null,
+            isDownloaded: Boolean = false
         ): Song {
             val highResThumbnail = ThumbnailUtils.upgrade(thumbnailUrl) ?: thumbnailUrl
             val stableId = (videoId.hashCode().toLong() and 0x7FFFFFFFFFFFFFFFL)
@@ -62,6 +64,7 @@ data class Song(
                 durationMs = durationMs,
                 contentUri = Uri.parse("stream://$videoId"),
                 albumArtUri = highResThumbnail?.let { Uri.parse(it) },
+                isDownloaded = isDownloaded,
                 source = TrackSource.Remote(
                     videoId = videoId,
                     thumbnailUrl = highResThumbnail,

@@ -1,12 +1,15 @@
 package com.victustune.player.data.repository
 
+import com.victustune.player.data.local.dao.DownloadedTrackDao
 import com.victustune.player.data.local.dao.FavoriteDao
 import com.victustune.player.data.local.dao.HistoryDao
 import com.victustune.player.data.local.dao.PlaylistDao
+import com.victustune.player.data.local.dao.SavedTrackDao
 import com.victustune.player.data.local.entity.FavoriteEntity
 import com.victustune.player.data.local.entity.HistoryEntity
 import com.victustune.player.data.local.entity.PlaylistEntity
 import com.victustune.player.data.local.entity.PlaylistSongCrossRef
+import com.victustune.player.data.local.entity.SavedTrackEntity
 import com.victustune.player.data.model.Playlist
 import com.victustune.player.data.model.Song
 import kotlinx.coroutines.flow.Flow
@@ -18,13 +21,14 @@ class PlaylistRepository(
     private val playlistDao: PlaylistDao,
     private val favoriteDao: FavoriteDao,
     private val historyDao: HistoryDao,
-    private val audioRepository: AudioRepository
+    private val audioRepository: AudioRepository,
+    private val downloadedTrackDao: DownloadedTrackDao,
+    private val savedTrackDao: SavedTrackDao
 ) {
 
     fun getPlaylists(): Flow<List<Playlist>> {
         return playlistDao.getAllPlaylists().combine(audioRepository.songsFlow) { entities, _ ->
             entities.map { entity ->
-                // Note: could query song count
                 Playlist(
                     id = entity.id,
                     name = entity.name,
@@ -59,22 +63,89 @@ class PlaylistRepository(
         )
     }
 
+    suspend fun addSongToPlaylist(playlistId: Long, song: Song) {
+        if (song.isRemote) {
+            savedTrackDao.insertOrUpdate(SavedTrackEntity.fromSong(song))
+        }
+        addSongToPlaylist(playlistId, song.id)
+    }
+
+    suspend fun createPlaylistWithSongs(name: String, songs: List<Song>): Playlist {
+        val createdAt = System.currentTimeMillis()
+        val playlistId = playlistDao.insertPlaylist(
+            PlaylistEntity(name = name, createdAt = createdAt)
+        )
+        val uniqueSongs = songs.distinctBy { it.id }
+        val remoteEntities = uniqueSongs.filter { it.isRemote }.map { SavedTrackEntity.fromSong(it) }
+        if (remoteEntities.isNotEmpty()) {
+            savedTrackDao.insertOrUpdateAll(remoteEntities)
+        }
+        val crossRefs = uniqueSongs.mapIndexed { index, song ->
+            PlaylistSongCrossRef(
+                playlistId = playlistId,
+                songId = song.id,
+                orderIndex = index,
+                addedAt = createdAt
+            )
+        }
+        if (crossRefs.isNotEmpty()) {
+            playlistDao.addSongsToPlaylist(crossRefs)
+        }
+        return Playlist(
+            id = playlistId,
+            name = name,
+            createdAt = createdAt,
+            trackCount = uniqueSongs.size
+        )
+    }
+
     suspend fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
         playlistDao.removeSongFromPlaylist(playlistId, songId)
     }
 
     fun getSongsForPlaylist(playlistId: Long): Flow<List<Song>> {
-        return playlistDao.getSongIdsForPlaylist(playlistId).combine(audioRepository.songsFlow) { ids, songs ->
-            val songMap = songs.associateBy { it.id }
-            ids.mapNotNull { songMap[it] }
+        return combine(
+            playlistDao.getSongIdsForPlaylist(playlistId),
+            audioRepository.songsFlow,
+            downloadedTrackDao.getAllDownloadedTracks(),
+            favoriteDao.getAllFavorites(),
+            savedTrackDao.getAllSavedTracks()
+        ) { ids, localSongs, downloadedEntities, favEntities, savedEntities ->
+            val localMap = localSongs.associateBy { it.id }
+            val downloadedMap = downloadedEntities.associateBy { it.songId }
+            val favMap = favEntities.associateBy { it.songId }
+            val savedMap = savedEntities.associateBy { it.songId }
+            val downloadedVideoIds = downloadedEntities
+                .filter { it.status == "COMPLETED" }
+                .map { it.videoId }
+                .toSet()
+
+            ids.mapNotNull { id ->
+                val baseSong = localMap[id]
+                    ?: downloadedMap[id]?.toSong()
+                    ?: favMap[id]?.toSong()
+                    ?: savedMap[id]?.toSong()
+                baseSong?.let { song ->
+                    val isFav = favMap.containsKey(song.id)
+                    val isDl = song.remoteVideoId?.let { downloadedVideoIds.contains(it) } ?: song.isDownloaded
+                    song.copy(isFavorite = isFav || song.isFavorite, isDownloaded = isDl)
+                }
+            }
         }
     }
 
     fun getFavoriteSongs(): Flow<List<Song>> {
-        return favoriteDao.getAllFavorites().combine(audioRepository.songsFlow) { favEntities, localSongs ->
+        return combine(
+            favoriteDao.getAllFavorites(),
+            audioRepository.songsFlow,
+            downloadedTrackDao.getAllDownloadedTracks()
+        ) { favEntities, localSongs, downloadedEntities ->
             val localMap = localSongs.associateBy { it.id }
+            val downloadedVideoIds = downloadedEntities.filter { it.status == "COMPLETED" }.map { it.videoId }.toSet()
             favEntities.map { entity ->
-                localMap[entity.songId]?.copy(isFavorite = true) ?: entity.toSong()
+                val baseSong = localMap[entity.songId]?.copy(isFavorite = true) ?: entity.toSong()
+                val isDl = baseSong.remoteVideoId?.let { downloadedVideoIds.contains(it) } ?: baseSong.isDownloaded
+                baseSong.copy(isDownloaded = isDl)
             }
         }
     }

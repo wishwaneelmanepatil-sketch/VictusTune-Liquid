@@ -1,5 +1,6 @@
 package com.victustune.player.ui.screens.search
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,11 +22,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.model.*
 import com.victustune.player.data.remote.innertube.SearchFilter
 import com.victustune.player.ui.components.TrackItem
@@ -61,10 +64,27 @@ fun SearchScreen(
     onAddToPlaylist: (Song) -> Unit,
     onGoToAlbum: (Long) -> Unit,
     onGoToArtist: (String) -> Unit,
+    onQueryActiveChange: (Boolean) -> Unit = {},
+    isOverlayActive: Boolean = false,
+    downloadStates: Map<String, DownloadStatus> = emptyMap(),
+    downloadProgress: Map<String, Float> = emptyMap(),
+    onToggleDownload: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(SearchCategory.LOCAL) }
+    val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(searchQuery) {
+        onQueryActiveChange(searchQuery.isNotEmpty())
+    }
+
+    // Priority 3: Clear active search query and dismiss keyboard before closing search screen
+    BackHandler(enabled = searchQuery.isNotEmpty() && !isOverlayActive) {
+        searchQuery = ""
+        focusManager.clearFocus()
+        onQueryActiveChange(false)
+    }
 
     // Filtered local songs
     val filteredLocalSongs = remember(searchQuery, allSongs) {
@@ -126,7 +146,11 @@ fun SearchScreen(
                 },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
+                        IconButton(onClick = {
+                            searchQuery = ""
+                            focusManager.clearFocus()
+                            onQueryActiveChange(false)
+                        }) {
                             Icon(
                                 imageVector = Icons.Default.Clear,
                                 contentDescription = "Clear",
@@ -362,12 +386,17 @@ fun SearchScreen(
                         when (selectedCategory) {
                             SearchCategory.SONGS -> {
                                 items(result.tracks) { track ->
+                                    val status = downloadStates[track.videoId] ?: DownloadStatus.NOT_DOWNLOADED
+                                    val prog = downloadProgress[track.videoId] ?: 0f
                                     RemoteTrackSearchItem(
                                         track = track,
                                         onClick = { onRemoteTrackClick(track) },
                                         onAddToQueue = { onAddToQueue(track.toSong()) },
                                         onAddToPlaylist = { onAddToPlaylist(track.toSong()) },
-                                        onToggleFavorite = { onToggleFavorite(track.toSong()) }
+                                        onToggleFavorite = { onToggleFavorite(track.toSong()) },
+                                        downloadStatus = status,
+                                        downloadProgress = prog,
+                                        onToggleDownload = { onToggleDownload?.invoke(track.toSong()) }
                                     )
                                 }
                             }
@@ -411,6 +440,9 @@ fun RemoteTrackSearchItem(
     onAddToQueue: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onToggleFavorite: () -> Unit = {},
+    downloadStatus: DownloadStatus = DownloadStatus.NOT_DOWNLOADED,
+    downloadProgress: Float = 0f,
+    onToggleDownload: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
@@ -465,6 +497,33 @@ fun RemoteTrackSearchItem(
             )
         }
 
+        when (downloadStatus) {
+            DownloadStatus.DOWNLOADING -> {
+                CircularProgressIndicator(
+                    progress = { (downloadProgress / 100f).coerceIn(0.05f, 1f) },
+                    strokeWidth = 2.dp,
+                    color = VividCyan,
+                    modifier = Modifier.size(16.dp).padding(end = 4.dp)
+                )
+            }
+            DownloadStatus.QUEUED -> {
+                CircularProgressIndicator(
+                    strokeWidth = 2.dp,
+                    color = TextTertiary,
+                    modifier = Modifier.size(14.dp).padding(end = 4.dp)
+                )
+            }
+            DownloadStatus.COMPLETED -> {
+                Icon(
+                    imageVector = VictusIcons.DownloadDone,
+                    contentDescription = "Downloaded",
+                    tint = VividCyan,
+                    modifier = Modifier.size(16.dp).padding(end = 4.dp)
+                )
+            }
+            else -> {}
+        }
+
         Box {
             IconButton(onClick = { isMenuOpen = true }) {
                 Icon(
@@ -500,6 +559,21 @@ fun RemoteTrackSearchItem(
                         isMenuOpen = false
                     }
                 )
+                if (onToggleDownload != null) {
+                    val isDl = downloadStatus == DownloadStatus.COMPLETED
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = if (isDl) "Remove Download" else "Download",
+                                color = if (isDl) Color(0xFFFF5252) else VividCyan
+                            )
+                        },
+                        onClick = {
+                            onToggleDownload()
+                            isMenuOpen = false
+                        }
+                    )
+                }
             }
         }
     }

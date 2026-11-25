@@ -430,4 +430,55 @@ object InnerTubeParser {
             else -> 0L
         }
     }
+
+    fun parseAccountInfo(json: JsonObject): com.victustune.player.data.model.UserProfile? {
+        var profile: com.victustune.player.data.model.UserProfile? = null
+        findAllObjects(json, "activeAccountHeaderRenderer") { header ->
+            val name = extractText(header["accountName"])
+            val email = extractText(header["email"]).ifEmpty { extractText(header["channelHandle"]) }
+            val avatar = extractThumbnail(header)
+            if (name.isNotEmpty()) {
+                profile = com.victustune.player.data.model.UserProfile(
+                    name = name,
+                    handle = email,
+                    avatarUrl = avatar
+                )
+            }
+        }
+        return profile
+    }
+
+    fun parseUserPlaylists(json: JsonObject): List<RemotePlaylist> {
+        val playlists = mutableListOf<RemotePlaylist>()
+
+        findAllObjects(json, "musicTwoRowItemRenderer") { item ->
+            val browseId = item["navigationEndpoint"]?.jsonObject
+                ?.get("browseEndpoint")?.jsonObject
+                ?.get("browseId")?.jsonPrimitive?.contentOrNull
+
+            val title = extractText(item["title"])
+            val subtitle = extractText(item["subtitle"])
+            val thumb = extractThumbnail(item)
+
+            if (browseId != null && title.isNotEmpty()) {
+                playlists.add(
+                    RemotePlaylist(
+                        browseId = browseId,
+                        title = title,
+                        author = subtitle.ifEmpty { "YouTube Music" },
+                        thumbnailUrl = thumb
+                    )
+                )
+            }
+        }
+
+        findAllObjects(json, "musicResponsiveListItemRenderer") { item ->
+            val playlist = parsePlaylistFromResponsiveItem(item)
+            if (playlist != null) {
+                playlists.add(playlist)
+            }
+        }
+
+        return playlists.distinctBy { it.browseId }
+    }
 }

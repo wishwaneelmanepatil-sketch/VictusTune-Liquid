@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.local.datastore.SortOption
 import com.victustune.player.data.model.Song
 import com.victustune.player.ui.components.TrackItem
@@ -34,6 +35,9 @@ fun TracksScreen(
     onAddToPlaylist: (Song) -> Unit,
     onGoToAlbum: (Long) -> Unit,
     onGoToArtist: (String) -> Unit,
+    downloadStates: Map<String, DownloadStatus> = emptyMap(),
+    downloadProgress: Map<String, Float> = emptyMap(),
+    onToggleDownload: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
@@ -158,6 +162,9 @@ fun TracksScreen(
             contentPadding = PaddingValues(bottom = 160.dp)
         ) {
             items(sortedSongs, key = { it.id }) { song ->
+                val videoId = song.remoteVideoId ?: song.id.toString()
+                val status = downloadStates[videoId] ?: if (song.isDownloaded) DownloadStatus.COMPLETED else DownloadStatus.NOT_DOWNLOADED
+                val progress = downloadProgress[videoId] ?: 0f
                 TrackItem(
                     song = song,
                     isPlayingCurrent = song.id == currentPlayingSongId,
@@ -167,7 +174,10 @@ fun TracksScreen(
                     onAddToQueue = { onAddToQueue(song) },
                     onAddToPlaylist = { onAddToPlaylist(song) },
                     onGoToAlbum = { onGoToAlbum(song.albumId) },
-                    onGoToArtist = { onGoToArtist(song.artist) }
+                    onGoToArtist = { onGoToArtist(song.artist) },
+                    downloadStatus = status,
+                    downloadProgress = progress,
+                    onToggleDownload = { onToggleDownload?.invoke(song) }
                 )
             }
         }

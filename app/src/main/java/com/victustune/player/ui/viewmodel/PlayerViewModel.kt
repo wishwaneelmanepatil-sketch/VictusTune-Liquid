@@ -1,5 +1,6 @@
 package com.victustune.player.ui.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -12,10 +13,16 @@ import com.victustune.player.data.repository.AudioRepository
 import com.victustune.player.data.repository.LyricsRepository
 import com.victustune.player.data.repository.PlaylistRepository
 import com.victustune.player.data.repository.StreamingRepository
+import com.victustune.player.data.transfer.ExportFormat
+import com.victustune.player.data.transfer.ImportProgress
+import com.victustune.player.data.transfer.PlaylistExporter
+import com.victustune.player.data.transfer.PlaylistImporter
+import com.victustune.player.data.transfer.PlaylistTransferEntry
 import com.victustune.player.playback.EqualizerController
 import com.victustune.player.playback.MusicController
 import com.victustune.player.playback.cache.MediaCacheManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,6 +40,27 @@ sealed class OnlineSearchUiState {
     data class Error(val message: String) : OnlineSearchUiState()
 }
 
+sealed class ImportDialogState {
+    object Idle : ImportDialogState()
+    object Parsing : ImportDialogState()
+    data class Preview(
+        val defaultName: String,
+        val format: ExportFormat,
+        val entries: List<PlaylistTransferEntry>
+    ) : ImportDialogState()
+    data class Importing(val progress: ImportProgress) : ImportDialogState()
+    data class Summary(val progress: ImportProgress) : ImportDialogState()
+    data class Error(val message: String) : ImportDialogState()
+}
+
+sealed class ExportTarget(val displayName: String) {
+    data class LocalPlaylist(val playlist: Playlist) : ExportTarget(playlist.name)
+    object Favorites : ExportTarget("Favorite Songs")
+    object Downloads : ExportTarget("Offline Downloads")
+    data class RemotePlaylistTarget(val playlist: RemotePlaylist) : ExportTarget(playlist.title)
+    data class CustomList(val name: String, val songs: List<Song>) : ExportTarget(name)
+}
+
 class PlayerViewModel(
     private val audioRepository: AudioRepository,
     private val playlistRepository: PlaylistRepository,
@@ -40,8 +68,41 @@ class PlayerViewModel(
     private val lyricsRepository: LyricsRepository,
     private val musicController: MusicController,
     private val preferencesManager: PreferencesManager,
-    val equalizerController: EqualizerController
+    val equalizerController: EqualizerController,
+    private val downloadRepository: com.victustune.player.data.repository.DownloadRepository,
+    private val playlistImporter: PlaylistImporter,
+    private val playlistExporter: PlaylistExporter
 ) : ViewModel() {
+
+    private val _importDialogState = MutableStateFlow<ImportDialogState>(ImportDialogState.Idle)
+    val importDialogState: StateFlow<ImportDialogState> = _importDialogState.asStateFlow()
+
+    private val _transferMessage = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val transferMessage: SharedFlow<String> = _transferMessage.asSharedFlow()
+
+    private var importJob: Job? = null
+
+    // Downloads
+    val downloadedSongs: StateFlow<List<Song>> = downloadRepository.completedDownloadsFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val allDownloads: StateFlow<List<com.victustune.player.data.local.entity.DownloadedTrackEntity>> = downloadRepository.allDownloadsFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val downloadStates: StateFlow<Map<String, com.victustune.player.data.download.DownloadStatus>> = downloadRepository.downloadStatesMap
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    val downloadProgress: StateFlow<Map<String, Float>> = downloadRepository.downloadProgressMap
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    val totalDownloadSizeBytes: StateFlow<Long> = downloadRepository.totalDownloadSizeBytes
+        .stateIn(viewModelScope, SharingStarted.Lazily, 0L)
+
+    val downloadWifiOnly: StateFlow<Boolean> = downloadRepository.downloadWifiOnlyFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val downloadQuality: StateFlow<String> = downloadRepository.downloadQualityFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "High")
 
     // Local library
     val songs: StateFlow<List<Song>> = audioRepository.songsFlow
@@ -83,6 +144,16 @@ class PlayerViewModel(
     val recentSearches: StateFlow<List<String>> = streamingRepository.recentSearches
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    // YouTube Music Account & Synced Playlists
+    val authState: StateFlow<AuthState> = streamingRepository.authState
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AuthState.LoggedOut)
+
+    val syncedPlaylists: StateFlow<List<RemotePlaylist>> = streamingRepository.syncedPlaylists
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    private val _isSyncingPlaylists = MutableStateFlow(false)
+    val isSyncingPlaylists: StateFlow<Boolean> = _isSyncingPlaylists.asStateFlow()
+
     private val _lyrics = MutableStateFlow<List<LyricLine>>(emptyList())
     val lyrics: StateFlow<List<LyricLine>> = _lyrics.asStateFlow()
 
@@ -120,6 +191,42 @@ class PlayerViewModel(
         refresh()
         loadExploreFeed()
         updateCacheSize()
+
+        // Validate YouTube Music session on startup if logged in
+        viewModelScope.launch {
+            if (streamingRepository.authManager.isLoggedIn()) {
+                streamingRepository.validateSession()
+                streamingRepository.syncUserPlaylists()
+            }
+        }
+    }
+
+    fun handleLoginSuccess(cookieString: String) {
+        viewModelScope.launch {
+            _isSyncingPlaylists.value = true
+            try {
+                streamingRepository.handleLoginSuccess(cookieString)
+            } finally {
+                _isSyncingPlaylists.value = false
+            }
+        }
+    }
+
+    fun syncPlaylists() {
+        viewModelScope.launch {
+            _isSyncingPlaylists.value = true
+            try {
+                streamingRepository.syncUserPlaylists()
+            } finally {
+                _isSyncingPlaylists.value = false
+            }
+        }
+    }
+
+    fun signOut() {
+        viewModelScope.launch {
+            streamingRepository.signOut()
+        }
     }
 
     fun refresh() {
@@ -262,6 +369,12 @@ class PlayerViewModel(
         }
     }
 
+    fun addSongToPlaylist(playlistId: Long, song: Song) {
+        viewModelScope.launch {
+            playlistRepository.addSongToPlaylist(playlistId, song)
+        }
+    }
+
     fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
         viewModelScope.launch {
             playlistRepository.removeSongFromPlaylist(playlistId, songId)
@@ -304,6 +417,126 @@ class PlayerViewModel(
         }
     }
 
+    fun downloadSong(song: Song) {
+        viewModelScope.launch {
+            downloadRepository.downloadSong(song)
+        }
+    }
+
+    fun downloadAll(songs: List<Song>) {
+        viewModelScope.launch {
+            downloadRepository.downloadAll(songs)
+        }
+    }
+
+    fun removeDownload(videoId: String) {
+        viewModelScope.launch {
+            downloadRepository.removeDownload(videoId)
+        }
+    }
+
+    fun removeAllDownloads() {
+        viewModelScope.launch {
+            downloadRepository.removeAllDownloads()
+        }
+    }
+
+    fun pauseDownloads() = downloadRepository.pauseDownloads()
+
+    fun resumeDownloads() = downloadRepository.resumeDownloads()
+
+    fun setDownloadWifiOnly(enabled: Boolean) {
+        viewModelScope.launch {
+            downloadRepository.setWifiOnly(enabled)
+        }
+    }
+
+    fun setDownloadQuality(quality: String) {
+        viewModelScope.launch {
+            downloadRepository.setDownloadQuality(quality)
+        }
+    }
+
+    fun preparePlaylistImport(uri: Uri) {
+        viewModelScope.launch {
+            _importDialogState.value = ImportDialogState.Parsing
+            try {
+                val preview = playlistImporter.parseFromUri(uri)
+                if (preview.entries.isEmpty()) {
+                    _importDialogState.value = ImportDialogState.Error(
+                        "No tracks were found in the selected file."
+                    )
+                } else {
+                    _importDialogState.value = ImportDialogState.Preview(
+                        defaultName = preview.defaultName,
+                        format = preview.format,
+                        entries = preview.entries
+                    )
+                }
+            } catch (e: Exception) {
+                _importDialogState.value = ImportDialogState.Error(
+                    e.message ?: "Failed to read playlist file"
+                )
+            }
+        }
+    }
+
+    fun startPlaylistImport(playlistName: String, matchOnline: Boolean) {
+        val current = _importDialogState.value as? ImportDialogState.Preview ?: return
+        importJob?.cancel()
+        importJob = viewModelScope.launch {
+            try {
+                playlistImporter.importPlaylist(
+                    playlistName = playlistName,
+                    entries = current.entries,
+                    matchOnline = matchOnline
+                ).collect { progress ->
+                    if (progress.isCompleted) {
+                        _importDialogState.value = ImportDialogState.Summary(progress)
+                    } else {
+                        _importDialogState.value = ImportDialogState.Importing(progress)
+                    }
+                }
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                _importDialogState.value = ImportDialogState.Idle
+                _transferMessage.tryEmit("Playlist import cancelled")
+            } catch (e: Exception) {
+                _importDialogState.value = ImportDialogState.Error(
+                    e.message ?: "Playlist import failed"
+                )
+            }
+        }
+    }
+
+    fun cancelPlaylistImport() {
+        importJob?.cancel()
+        importJob = null
+        _importDialogState.value = ImportDialogState.Idle
+    }
+
+    fun dismissImportDialog() {
+        importJob?.cancel()
+        importJob = null
+        _importDialogState.value = ImportDialogState.Idle
+    }
+
+    fun exportPlaylist(target: ExportTarget, uri: Uri, format: ExportFormat) {
+        viewModelScope.launch {
+            val result = when (target) {
+                is ExportTarget.LocalPlaylist -> playlistExporter.exportLocalPlaylist(target.playlist.id, uri, format)
+                is ExportTarget.Favorites -> playlistExporter.exportFavorites(uri, format)
+                is ExportTarget.Downloads -> playlistExporter.exportDownloads(uri, format)
+                is ExportTarget.RemotePlaylistTarget -> playlistExporter.exportRemotePlaylist(target.playlist.browseId, uri, format)
+                is ExportTarget.CustomList -> playlistExporter.exportSongs(target.songs, uri, format)
+            }
+            result.onSuccess { count ->
+                _transferMessage.tryEmit("Playlist exported successfully ($count tracks)")
+            }.onFailure { err ->
+                _transferMessage.tryEmit("Export failed: ${err.message ?: "Unable to write file"}")
+            }
+        }
+    }
+
     fun setSleepTimer(minutes: Int) = musicController.setSleepTimer(minutes)
 
     fun cancelSleepTimer() = musicController.cancelSleepTimer()
@@ -320,7 +553,10 @@ class PlayerViewModel(
                     lyricsRepository = container.lyricsRepository,
                     musicController = container.musicController,
                     preferencesManager = container.preferencesManager,
-                    equalizerController = container.equalizerController
+                    equalizerController = container.equalizerController,
+                    downloadRepository = container.downloadRepository,
+                    playlistImporter = container.playlistImporter,
+                    playlistExporter = container.playlistExporter
                 ) as T
             }
         }

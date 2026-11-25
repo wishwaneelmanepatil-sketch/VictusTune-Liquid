@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.model.BrowseResult
 import com.victustune.player.data.model.RemoteTrack
 import com.victustune.player.data.model.Song
@@ -46,6 +47,11 @@ fun RemoteDetailScreen(
     onAddToQueue: (RemoteTrack) -> Unit,
     onAddToPlaylist: (Song) -> Unit,
     onToggleFavorite: (Song) -> Unit = {},
+    onDownloadAll: ((List<RemoteTrack>) -> Unit)? = null,
+    downloadStates: Map<String, DownloadStatus> = emptyMap(),
+    downloadProgress: Map<String, Float> = emptyMap(),
+    onToggleDownload: ((RemoteTrack) -> Unit)? = null,
+    onExportPlaylist: ((String, List<RemoteTrack>) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var isLoading by remember { mutableStateOf(true) }
@@ -132,6 +138,25 @@ fun RemoteDetailScreen(
                             tint = Color.White
                         )
                     }
+
+                    if (onExportPlaylist != null && tracks.isNotEmpty()) {
+                        IconButton(
+                            onClick = { onExportPlaylist(displayTitle, tracks) },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .statusBarsPadding()
+                                .padding(12.dp)
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                        ) {
+                            Icon(
+                                imageVector = VictusIcons.ExportPlaylist,
+                                contentDescription = "Export Playlist",
+                                tint = VividCyan
+                            )
+                        }
+                    }
                 }
             }
 
@@ -182,7 +207,7 @@ fun RemoteDetailScreen(
                     // Transport Actions
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Button(
                             onClick = { if (tracks.isNotEmpty()) onPlayAll(tracks) },
@@ -195,8 +220,8 @@ fun RemoteDetailScreen(
                             shape = RoundedCornerShape(24.dp)
                         ) {
                             Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Play All", fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Play", fontWeight = FontWeight.Bold)
                         }
 
                         OutlinedButton(
@@ -207,8 +232,22 @@ fun RemoteDetailScreen(
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
                         ) {
                             Icon(imageVector = VictusIcons.Shuffle, contentDescription = null, tint = TextPrimary)
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text("Shuffle")
+                        }
+
+                        if (onDownloadAll != null) {
+                            OutlinedButton(
+                                onClick = { if (tracks.isNotEmpty()) onDownloadAll(tracks) },
+                                enabled = tracks.isNotEmpty(),
+                                modifier = Modifier.weight(1.1f),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = VividCyan)
+                            ) {
+                                Icon(imageVector = VictusIcons.Download, contentDescription = null, tint = VividCyan, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Download All", fontSize = 12.sp)
+                            }
                         }
                     }
 
@@ -306,6 +345,36 @@ fun RemoteDetailScreen(
                             )
                         }
 
+                        val trackStatus = downloadStates[track.videoId] ?: DownloadStatus.NOT_DOWNLOADED
+                        val trackProg = downloadProgress[track.videoId] ?: 0f
+
+                        when (trackStatus) {
+                            DownloadStatus.DOWNLOADING -> {
+                                CircularProgressIndicator(
+                                    progress = { (trackProg / 100f).coerceIn(0.05f, 1f) },
+                                    strokeWidth = 2.dp,
+                                    color = VividCyan,
+                                    modifier = Modifier.size(16.dp).padding(end = 4.dp)
+                                )
+                            }
+                            DownloadStatus.QUEUED -> {
+                                CircularProgressIndicator(
+                                    strokeWidth = 2.dp,
+                                    color = TextTertiary,
+                                    modifier = Modifier.size(14.dp).padding(end = 4.dp)
+                                )
+                            }
+                            DownloadStatus.COMPLETED -> {
+                                Icon(
+                                    imageVector = VictusIcons.DownloadDone,
+                                    contentDescription = "Downloaded",
+                                    tint = VividCyan,
+                                    modifier = Modifier.size(16.dp).padding(end = 4.dp)
+                                )
+                            }
+                            else -> {}
+                        }
+
                         Box {
                             IconButton(onClick = { isMenuOpen = true }) {
                                 Icon(
@@ -348,6 +417,21 @@ fun RemoteDetailScreen(
                                         isMenuOpen = false
                                     }
                                 )
+                                if (onToggleDownload != null) {
+                                    val isDl = trackStatus == DownloadStatus.COMPLETED
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = if (isDl) "Remove Download" else "Download",
+                                                color = if (isDl) Color(0xFFFF5252) else VividCyan
+                                            )
+                                        },
+                                        onClick = {
+                                            onToggleDownload(track)
+                                            isMenuOpen = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

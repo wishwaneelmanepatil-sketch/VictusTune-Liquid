@@ -28,7 +28,8 @@ class InnerTubeClient(
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
-        .build()
+        .build(),
+    var authManager: com.victustune.player.data.auth.AuthManager? = null
 ) {
 
     private val json = Json {
@@ -61,13 +62,24 @@ class InnerTubeClient(
     }
 
     private fun createBaseRequestBuilder(url: String): Request.Builder {
-        return Request.Builder()
+        val builder = Request.Builder()
             .url(url)
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
             .header("Referer", "https://music.youtube.com/")
             .header("Origin", "https://music.youtube.com")
+            .header("X-Origin", "https://music.youtube.com")
             .header("X-YouTube-Client-Name", "67")
             .header("X-YouTube-Client-Version", clientVersion)
+
+        val auth = authManager
+        val cookie = auth?.getCookie()
+        val sapisid = auth?.getSapisid()
+        if (!cookie.isNullOrEmpty() && !sapisid.isNullOrEmpty()) {
+            builder.header("Cookie", cookie)
+            builder.header("Authorization", com.victustune.player.data.auth.AuthManager.generateSapisidHash(sapisid))
+        }
+
+        return builder
     }
 
     private suspend fun refreshKeyIfNeeded() = withContext(Dispatchers.IO) {
@@ -238,5 +250,135 @@ class InnerTubeClient(
         val bodyString = response.body?.string() ?: "{}"
         val parsedJson = json.parseToJsonElement(bodyString).jsonObject
         return InnerTubeParser.parseNext(parsedJson)
+    }
+
+    suspend fun getAccountInfo(): com.victustune.player.data.model.UserProfile? = withContext(Dispatchers.IO) {
+        val auth = authManager
+        if (auth?.getCookie().isNullOrEmpty() || auth?.getSapisid().isNullOrEmpty()) {
+            return@withContext null
+        }
+
+        try {
+            val url = "$baseUrl/account/account_menu?key=$apiKey"
+            val requestBodyJson = buildJsonObject {
+                put("context", buildContext())
+            }
+
+            val request = createBaseRequestBuilder(url)
+                .post(requestBodyJson.toString().toRequestBody(jsonMediaType))
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext null
+            }
+
+            val bodyString = response.body?.string() ?: "{}"
+            val parsedJson = json.parseToJsonElement(bodyString).jsonObject
+            InnerTubeParser.parseAccountInfo(parsedJson)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun getUserPlaylists(
+        continuation: String? = null
+    ): Pair<List<com.victustune.player.data.model.RemotePlaylist>, String?> = withContext(Dispatchers.IO) {
+        try {
+            executeUserPlaylists(continuation)
+        } catch (e: IOException) {
+            refreshKeyIfNeeded()
+            executeUserPlaylists(continuation)
+        }
+    }
+
+    private fun executeUserPlaylists(
+        continuation: String?
+    ): Pair<List<com.victustune.player.data.model.RemotePlaylist>, String?> {
+        val url = if (continuation != null) {
+            "$baseUrl/browse?key=$apiKey&continuation=$continuation&ctoken=$continuation"
+        } else {
+            "$baseUrl/browse?key=$apiKey"
+        }
+
+        val requestBodyJson = buildJsonObject {
+            put("context", buildContext())
+            if (continuation == null) {
+                put("browseId", "FEmusic_liked_playlists")
+            }
+        }
+
+        val request = createBaseRequestBuilder(url)
+            .post(requestBodyJson.toString().toRequestBody(jsonMediaType))
+            .build()
+
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) {
+            throw IOException("InnerTube user playlists browse failed with HTTP ${response.code}")
+        }
+
+        val bodyString = response.body?.string() ?: "{}"
+        val parsedJson = json.parseToJsonElement(bodyString).jsonObject
+        val playlists = InnerTubeParser.parseUserPlaylists(parsedJson).toMutableList()
+
+        // Ensure Liked Music is accessible if on the first page
+        if (continuation == null && playlists.none { it.browseId == "VLLM" || it.browseId == "LM" }) {
+            playlists.add(
+                0,
+                com.victustune.player.data.model.RemotePlaylist(
+                    browseId = "VLLM",
+                    title = "Liked Music",
+                    author = "Auto playlist",
+                    thumbnailUrl = null
+                )
+            )
+        }
+
+        val nextContinuation = findContinuationToken(parsedJson)
+        return Pair(playlists, nextContinuation)
+    }
+
+    private fun findContinuationToken(json: JsonObject): String? {
+        var token: String? = null
+        fun findToken(element: JsonElement) {
+            when (element) {
+                is JsonObject -> {
+                    if (element.containsKey("continuationCommand")) {
+                        token = element["continuationCommand"]?.jsonObject?.get("token")?.jsonPrimitive?.contentOrNull
+                        if (token != null) return
+                    }
+                    if (element.containsKey("nextContinuationData")) {
+                        token = element["nextContinuationData"]?.jsonObject?.get("continuation")?.jsonPrimitive?.contentOrNull
+                        if (token != null) return
+                    }
+                    for (entry in element.entries) {
+                        findToken(entry.value)
+                        if (token != null) return
+                    }
+                }
+                is JsonArray -> {
+                    for (item in element) {
+                        findToken(item)
+                        if (token != null) return
+                    }
+                }
+                else -> {}
+            }
+        }
+        findToken(json)
+        return token
+    }
+
+    suspend fun getPlaylistTracks(
+        playlistId: String,
+        continuation: String? = null
+    ): Pair<List<RemoteTrack>, String?> = withContext(Dispatchers.IO) {
+        val browseId = when {
+            playlistId.startsWith("VL") -> playlistId
+            playlistId == "LM" -> "VLLM"
+            else -> "VL$playlistId"
+        }
+        val result = browse(browseId, continuation)
+        Pair(result.tracks, result.continuationToken)
     }
 }

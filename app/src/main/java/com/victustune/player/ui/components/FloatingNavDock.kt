@@ -59,7 +59,7 @@ fun FloatingNavDock(
                 (currentSubScreen is SubScreen.Main && currentTab == MainTab.PLAYLISTS) -> NavDockItem.PLAYLISTS
         currentSubScreen is SubScreen.AlbumDetail ||
                 currentSubScreen is SubScreen.ArtistDetail ||
-                (currentSubScreen is SubScreen.Main && (currentTab == MainTab.TRACKS || currentTab == MainTab.ALBUMS || currentTab == MainTab.ARTISTS)) -> NavDockItem.LIBRARY
+                (currentSubScreen is SubScreen.Main && (currentTab == MainTab.TRACKS || currentTab == MainTab.ALBUMS || currentTab == MainTab.ARTISTS || currentTab == MainTab.DOWNLOADS)) -> NavDockItem.LIBRARY
         else -> NavDockItem.HOME
     }
 

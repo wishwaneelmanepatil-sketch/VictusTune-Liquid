@@ -30,6 +30,28 @@ class PreferencesManager(private val context: Context) {
         val SLEEP_TIMER_END = longPreferencesKey("sleep_timer_end")
         val AUDIO_QUALITY = stringPreferencesKey("audio_quality")
         val MAX_CACHE_SIZE_MB = intPreferencesKey("max_cache_size_mb")
+        val DOWNLOAD_QUALITY = stringPreferencesKey("download_quality")
+        val DOWNLOAD_WIFI_ONLY = booleanPreferencesKey("download_wifi_only")
+    }
+
+    val downloadQualityFlow: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.DOWNLOAD_QUALITY] ?: "High"
+    }
+
+    suspend fun setDownloadQuality(quality: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DOWNLOAD_QUALITY] = quality
+        }
+    }
+
+    val downloadWifiOnlyFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.DOWNLOAD_WIFI_ONLY] ?: false
+    }
+
+    suspend fun setDownloadWifiOnly(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DOWNLOAD_WIFI_ONLY] = enabled
+        }
     }
 
     val audioQualityFlow: Flow<AudioQuality> = context.dataStore.data.map { preferences ->

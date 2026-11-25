@@ -765,4 +765,204 @@ object VictusIcons {
             }.build()
             return _libraryMusic!!
         }
+
+    private var _sync: ImageVector? = null
+    val Sync: ImageVector
+        get() {
+            if (_sync != null) return _sync!!
+            _sync = ImageVector.Builder(
+                name = "Sync",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(12f, 4f)
+                verticalLineTo(1f)
+                lineTo(8f, 5f)
+                lineToRelative(4f, 4f)
+                verticalLineTo(6f)
+                curveToRelative(3.31f, 0f, 6f, 2.69f, 6f, 6f)
+                curveToRelative(0f, 1.01f, -0.25f, 1.97f, -0.7f, 2.8f)
+                lineToRelative(1.46f, 1.46f)
+                curveTo(19.54f, 15.03f, 20f, 13.57f, 20f, 12f)
+                curveToRelative(0f, -4.42f, -3.58f, -8f, -8f, -8f)
+                close()
+                moveTo(12f, 18f)
+                curveToRelative(-3.31f, 0f, -6f, -2.69f, -6f, -6f)
+                curveToRelative(0f, -1.01f, 0.25f, -1.97f, 0.7f, -2.8f)
+                lineTo(5.24f, 7.74f)
+                curveTo(4.46f, 8.97f, 4f, 10.43f, 4f, 12f)
+                curveToRelative(0f, 4.42f, 3.58f, 8f, 8f, 8f)
+                verticalLineToRelative(3f)
+                lineToRelative(4f, -4f)
+                lineToRelative(-4f, -4f)
+                verticalLineToRelative(3f)
+                close()
+            }.build()
+            return _sync!!
+        }
+
+    private var _cloudDone: ImageVector? = null
+    val CloudDone: ImageVector
+        get() {
+            if (_cloudDone != null) return _cloudDone!!
+            _cloudDone = ImageVector.Builder(
+                name = "CloudDone",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(19.35f, 10.04f)
+                curveTo(18.67f, 6.59f, 15.64f, 4f, 12f, 4f)
+                curveTo(9.11f, 4f, 6.6f, 5.64f, 5.35f, 8.04f)
+                curveTo(2.34f, 8.36f, 0f, 10.91f, 0f, 14f)
+                curveToRelative(0f, 3.31f, 2.69f, 6f, 6f, 6f)
+                horizontalLineToRelative(13f)
+                curveToRelative(2.76f, 0f, 5f, -2.24f, 5f, -5f)
+                curveToRelative(0f, -2.64f, -2.05f, -4.78f, -4.65f, -4.96f)
+                close()
+                moveTo(10f, 17f)
+                lineToRelative(-3.5f, -3.5f)
+                lineToRelative(1.41f, -1.41f)
+                lineTo(10f, 14.17f)
+                lineToRelative(6.59f, -6.59f)
+                lineTo(18f, 9f)
+                lineToRelative(-8f, 8f)
+                close()
+            }.build()
+            return _cloudDone!!
+        }
+
+    private var _download: ImageVector? = null
+    val Download: ImageVector
+        get() {
+            if (_download != null) return _download!!
+            _download = ImageVector.Builder(
+                name = "Download",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(19f, 9f)
+                horizontalLineToRelative(-4f)
+                verticalLineTo(3f)
+                horizontalLineTo(9f)
+                verticalLineToRelative(6f)
+                horizontalLineTo(5f)
+                lineToRelative(7f, 7f)
+                lineToRelative(7f, -7f)
+                close()
+                moveTo(5f, 18f)
+                verticalLineToRelative(2f)
+                horizontalLineToRelative(14f)
+                verticalLineToRelative(-2f)
+                horizontalLineTo(5f)
+                close()
+            }.build()
+            return _download!!
+        }
+
+    private var _downloadDone: ImageVector? = null
+    val DownloadDone: ImageVector
+        get() {
+            if (_downloadDone != null) return _downloadDone!!
+            _downloadDone = ImageVector.Builder(
+                name = "DownloadDone",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(5f, 18f)
+                horizontalLineToRelative(14f)
+                verticalLineToRelative(2f)
+                horizontalLineTo(5f)
+                verticalLineToRelative(-2f)
+                close()
+                moveTo(9.6f, 14.5f)
+                lineTo(6f, 10.9f)
+                lineToRelative(1.4f, -1.4f)
+                lineToRelative(2.2f, 2.2f)
+                lineToRelative(7.8f, -7.8f)
+                lineToRelative(1.4f, 1.4f)
+                lineToRelative(-9.2f, 9.2f)
+                close()
+            }.build()
+            return _downloadDone!!
+        }
+
+    private var _importPlaylist: ImageVector? = null
+    val ImportPlaylist: ImageVector
+        get() {
+            if (_importPlaylist != null) return _importPlaylist!!
+            _importPlaylist = ImageVector.Builder(
+                name = "ImportPlaylist",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(9f, 16f)
+                horizontalLineToRelative(6f)
+                verticalLineToRelative(-6f)
+                horizontalLineToRelative(4f)
+                lineToRelative(-7f, -7f)
+                lineToRelative(-7f, 7f)
+                horizontalLineToRelative(4f)
+                close()
+                moveTo(5f, 18f)
+                horizontalLineToRelative(14f)
+                verticalLineToRelative(2f)
+                horizontalLineTo(5f)
+                close()
+            }.build()
+            return _importPlaylist!!
+        }
+
+    private var _exportPlaylist: ImageVector? = null
+    val ExportPlaylist: ImageVector
+        get() {
+            if (_exportPlaylist != null) return _exportPlaylist!!
+            _exportPlaylist = ImageVector.Builder(
+                name = "ExportPlaylist",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(16f, 5f)
+                lineToRelative(-1.42f, 1.42f)
+                lineToRelative(-1.59f, -1.59f)
+                verticalLineTo(16f)
+                horizontalLineToRelative(-1.98f)
+                verticalLineTo(4.83f)
+                lineTo(9.42f, 6.42f)
+                lineTo(8f, 5f)
+                lineToRelative(4f, -4f)
+                lineToRelative(4f, 4f)
+                close()
+                moveTo(20f, 10f)
+                verticalLineToRelative(11f)
+                curveToRelative(0f, 1.1f, -0.9f, 2f, -2f, 2f)
+                horizontalLineTo(6f)
+                curveToRelative(-1.11f, 0f, -2f, -0.9f, -2f, -2f)
+                verticalLineTo(10f)
+                curveToRelative(0f, -1.11f, 0.89f, -2f, 2f, -2f)
+                horizontalLineToRelative(3f)
+                verticalLineToRelative(2f)
+                horizontalLineTo(6f)
+                verticalLineToRelative(11f)
+                horizontalLineToRelative(12f)
+                verticalLineTo(10f)
+                horizontalLineToRelative(-3f)
+                verticalLineTo(8f)
+                horizontalLineToRelative(3f)
+                curveToRelative(1.1f, 0f, 2f, 0.89f, 2f, 2f)
+                close()
+            }.build()
+            return _exportPlaylist!!
+        }
 }

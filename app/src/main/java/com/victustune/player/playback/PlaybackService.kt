@@ -74,12 +74,19 @@ class PlaybackService : MediaSessionService() {
         )
 
         val simpleCache = MediaCacheManager.getInstance(applicationContext)
-        val cacheDataSourceFactory = CacheDataSource.Factory()
+        val streamingCacheFactory = CacheDataSource.Factory()
             .setCache(simpleCache)
             .setUpstreamDataSourceFactory(resolvingDataSourceFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-        val defaultDataSourceFactory = DefaultDataSource.Factory(this, cacheDataSourceFactory)
+        val downloadCache = com.victustune.player.data.download.DownloadCacheManager.getDownloadCache(applicationContext)
+        val downloadCacheFactory = CacheDataSource.Factory()
+            .setCache(downloadCache)
+            .setUpstreamDataSourceFactory(streamingCacheFactory)
+            .setCacheWriteDataSinkFactory(null) // Read-only! Downloaded songs are written by DownloadManager
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
+        val defaultDataSourceFactory = DefaultDataSource.Factory(this, downloadCacheFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
             .setDataSourceFactory(defaultDataSourceFactory)
 
