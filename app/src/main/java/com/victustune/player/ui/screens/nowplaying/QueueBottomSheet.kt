@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -331,7 +332,7 @@ fun QueueBottomSheet(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 6.dp),
+                                        .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     AsyncImage(
@@ -364,10 +365,17 @@ fun QueueBottomSheet(
                                         )
                                     }
 
-                                    // Remove button
-                                    IconButton(
-                                        onClick = { latestOnRemove(latestIndex) },
-                                        modifier = Modifier.size(34.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    // Remove button (bounded 36dp circle without 48dp touch-box overlap)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .clickable(enabled = draggedUid == null) {
+                                                latestOnRemove(latestIndex)
+                                            },
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = VictusIcons.DeleteOutline,
@@ -379,6 +387,7 @@ fun QueueBottomSheet(
 
                                     // Dedicated Drag Handle (hidden on single-item queues)
                                     if (localQueue.size > 1) {
+                                        Spacer(modifier = Modifier.width(8.dp))
                                         Box(
                                             modifier = Modifier
                                                 .size(40.dp)
