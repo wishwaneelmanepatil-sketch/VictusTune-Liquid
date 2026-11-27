@@ -115,6 +115,10 @@ class StreamingRepository(
         return innerTubeClient.search(query, filter, continuation)
     }
 
+    suspend fun getSearchSuggestions(query: String): List<String> {
+        return innerTubeClient.getSearchSuggestions(query)
+    }
+
     suspend fun getHomeFeed(): BrowseResult {
         return innerTubeClient.getHomeFeed()
     }

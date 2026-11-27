@@ -18,10 +18,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.victustune.player.VictusTuneApp
 import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.model.*
 import com.victustune.player.data.transfer.ExportFormat
@@ -42,6 +45,7 @@ import com.victustune.player.ui.theme.*
 import com.victustune.player.ui.viewmodel.ExportTarget
 import com.victustune.player.ui.viewmodel.ImportDialogState
 import com.victustune.player.ui.viewmodel.PlayerViewModel
+import com.victustune.player.ui.viewmodel.SearchViewModel
 
 enum class MainTab(val title: String) {
     EXPLORE("Explore"),
@@ -76,6 +80,7 @@ fun MainScreen(
 ) {
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
     val songs by viewModel.songs.collectAsStateWithLifecycle()
+    val sortedSongs by viewModel.sortedSongs.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -84,9 +89,10 @@ fun MainScreen(
     val sortOption by viewModel.sortOption.collectAsStateWithLifecycle()
     val sleepTimerSeconds by viewModel.sleepTimerRemainingSeconds.collectAsStateWithLifecycle()
 
+    val app = LocalContext.current.applicationContext as VictusTuneApp
+    val searchViewModel: SearchViewModel = viewModel(factory = SearchViewModel.factory(app))
+
     val exploreState by viewModel.exploreState.collectAsStateWithLifecycle()
-    val onlineSearchState by viewModel.onlineSearchState.collectAsStateWithLifecycle()
-    val recentSearches by viewModel.recentSearches.collectAsStateWithLifecycle()
     val audioQuality by viewModel.audioQuality.collectAsStateWithLifecycle()
     val currentCacheBytes by viewModel.currentCacheBytes.collectAsStateWithLifecycle()
     val maxCacheSizeMb by viewModel.maxCacheSizeMb.collectAsStateWithLifecycle()
@@ -96,7 +102,9 @@ fun MainScreen(
     val isSyncingPlaylists by viewModel.isSyncingPlaylists.collectAsStateWithLifecycle()
 
     val downloadedSongs by viewModel.downloadedSongs.collectAsStateWithLifecycle()
-    val allDownloads by viewModel.allDownloads.collectAsStateWithLifecycle()
+    val filteredDownloadedSongs by viewModel.filteredDownloadedSongs.collectAsStateWithLifecycle()
+    val activeDownloads by viewModel.activeDownloads.collectAsStateWithLifecycle()
+    val downloadSearchQuery by viewModel.downloadSearchQuery.collectAsStateWithLifecycle()
     val downloadStates by viewModel.downloadStates.collectAsStateWithLifecycle()
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
     val totalDownloadSizeBytes by viewModel.totalDownloadSizeBytes.collectAsStateWithLifecycle()
@@ -291,7 +299,10 @@ fun MainScreen(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Search Button
-                        IconButton(onClick = { navigateTo(SubScreen.Search) }) {
+                        IconButton(onClick = {
+                            searchViewModel.startNewSearchSession()
+                            navigateTo(SubScreen.Search)
+                        }) {
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = "Search",
@@ -405,16 +416,16 @@ fun MainScreen(
                                 }
                             )
                             MainTab.TRACKS -> TracksScreen(
-                                songs = songs,
+                                songs = sortedSongs,
                                 currentPlayingSongId = playbackState.currentSong?.id,
                                 sortOption = sortOption,
                                 onSortOptionSelected = { viewModel.setSortOption(it) },
-                                onPlayAll = { viewModel.playQueue(songs, 0) },
+                                onPlayAll = { viewModel.playQueue(sortedSongs, 0) },
                                 onShuffleAll = {
-                                    viewModel.playQueue(songs.shuffled(), 0)
+                                    viewModel.playQueue(sortedSongs.shuffled(), 0)
                                     viewModel.toggleShuffle()
                                 },
-                                onSongClick = { viewModel.playSong(it, songs) },
+                                onSongClick = { viewModel.playSong(it, sortedSongs) },
                                 onToggleFavorite = { viewModel.toggleFavorite(it) },
                                 onPlayNext = { viewModel.playSongNext(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
@@ -478,9 +489,11 @@ fun MainScreen(
                                 onExportRemotePlaylist = { exportTarget = ExportTarget.RemotePlaylistTarget(it) }
                             )
                             MainTab.DOWNLOADS -> DownloadsScreen(
-                                downloadedSongs = downloadedSongs,
-                                allDownloads = allDownloads,
-                                downloadStates = downloadStates,
+                                downloadedSongsCount = downloadedSongs.size,
+                                filteredCompletedSongs = filteredDownloadedSongs,
+                                activeDownloads = activeDownloads,
+                                searchQuery = downloadSearchQuery,
+                                onSearchQueryChange = { viewModel.setDownloadSearchQuery(it) },
                                 downloadProgress = downloadProgress,
                                 totalSizeBytes = totalDownloadSizeBytes,
                                 currentPlayingSongId = playbackState.currentSong?.id,
@@ -500,17 +513,10 @@ fun MainScreen(
                     }
                     is SubScreen.Search -> {
                         SearchScreen(
-                            allSongs = songs,
+                            searchViewModel = searchViewModel,
                             currentPlayingSongId = playbackState.currentSong?.id,
-                            recentSearches = recentSearches,
-                            onlineSearchState = onlineSearchState,
                             onBack = { navigateBack() },
-                            onPerformSearch = { query, filter ->
-                                viewModel.searchOnline(query, filter)
-                            },
-                            onDeleteRecentSearch = { viewModel.deleteRecentSearch(it) },
-                            onClearRecentSearches = { viewModel.clearRecentSearches() },
-                            onSongClick = { viewModel.playSong(it, songs) },
+                            onSongClick = { song, list -> viewModel.playSong(song, list) },
                             onRemoteTrackClick = { viewModel.playRemoteTrack(it) },
                             onRemoteAlbumClick = { album ->
                                 navigateTo(SubScreen.RemoteDetail(
@@ -582,8 +588,10 @@ fun MainScreen(
                         )
                     }
                     is SubScreen.AlbumDetail -> {
-                        val albumSongs = remember(songs, sub.album) {
-                            songs.filter { it.albumId == sub.album.id || it.album == sub.album.title }
+                        val albumSongs by produceState(initialValue = emptyList(), songs, sub.album) {
+                            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                                songs.filter { it.albumId == sub.album.id || it.album == sub.album.title }
+                            }
                         }
                         DetailScreen(
                             title = sub.album.title,
@@ -614,8 +622,10 @@ fun MainScreen(
                         )
                     }
                     is SubScreen.ArtistDetail -> {
-                        val artistSongs = remember(songs, sub.artist) {
-                            songs.filter { it.artist == sub.artist.name }
+                        val artistSongs by produceState(initialValue = emptyList(), songs, sub.artist) {
+                            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                                songs.filter { it.artist == sub.artist.name }
+                            }
                         }
                         DetailScreen(
                             title = sub.artist.name,
@@ -758,6 +768,7 @@ fun MainScreen(
             ) {
                 MiniPlayer(
                     playbackState = playbackState,
+                    progressStateFlow = viewModel.progressState,
                     accentColor = accentColor,
                     onExpand = { isNowPlayingExpanded = true },
                     onTogglePlayPause = { viewModel.togglePlayPause() },
@@ -787,6 +798,7 @@ fun MainScreen(
                             }
                             NavDockItem.SEARCH -> {
                                 if (currentSubScreen !is SubScreen.Search) {
+                                    searchViewModel.startNewSearchSession()
                                     navigateTo(SubScreen.Search)
                                 }
                             }
@@ -820,6 +832,7 @@ fun MainScreen(
         ) {
             NowPlayingSheet(
                 playbackState = playbackState,
+                progressStateFlow = viewModel.progressState,
                 lyrics = lyrics,
                 accentColor = accentColor,
                 onDismiss = { isNowPlayingExpanded = false },
@@ -857,12 +870,14 @@ fun MainScreen(
         // Up Next Queue Bottom Sheet
         if (isQueueOpen) {
             QueueBottomSheet(
-                queue = playbackState.queue,
+                queueEntries = playbackState.queueEntries.ifEmpty {
+                    playbackState.queue.mapIndexed { idx, s -> QueueEntry(uid = "${s.id}_$idx", song = s) }
+                },
                 currentQueueIndex = playbackState.currentQueueIndex,
                 accentColor = accentColor,
                 onDismiss = { isQueueOpen = false },
                 onSongClick = { index ->
-                    viewModel.playQueue(playbackState.queue, index)
+                    viewModel.playQueueIndex(index)
                 },
                 onRemove = { index ->
                     viewModel.removeFromQueue(index)

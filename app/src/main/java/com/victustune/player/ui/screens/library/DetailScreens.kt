@@ -176,7 +176,11 @@ fun DetailScreen(
             }
 
             // Track List
-            items(songs, key = { it.id }) { song ->
+            items(
+                items = songs,
+                key = { it.id },
+                contentType = { "detail_track" }
+            ) { song ->
                 val videoId = song.remoteVideoId ?: song.id.toString()
                 val status = downloadStates[videoId] ?: (if (song.isDownloaded) DownloadStatus.COMPLETED else DownloadStatus.NOT_DOWNLOADED)
                 val progress = downloadProgress[videoId] ?: 0f

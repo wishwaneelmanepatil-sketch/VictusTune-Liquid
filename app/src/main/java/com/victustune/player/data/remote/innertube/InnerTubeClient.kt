@@ -156,6 +156,41 @@ class InnerTubeClient(
         return InnerTubeParser.parseSearch(parsedJson)
     }
 
+    suspend fun getSearchSuggestions(input: String): List<String> = withContext(Dispatchers.IO) {
+        if (input.isBlank()) return@withContext emptyList()
+        try {
+            executeSearchSuggestions(input)
+        } catch (e: IOException) {
+            try {
+                refreshKeyIfNeeded()
+                executeSearchSuggestions(input)
+            } catch (_: Exception) {
+                emptyList()
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun executeSearchSuggestions(input: String): List<String> {
+        val url = "$baseUrl/music/get_search_suggestions?key=$apiKey"
+        val requestBodyJson = buildJsonObject {
+            put("context", buildContext())
+            put("input", input)
+        }
+        val request = createBaseRequestBuilder(url)
+            .post(requestBodyJson.toString().toRequestBody(jsonMediaType))
+            .build()
+
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) {
+            throw IOException("InnerTube search suggestions failed with HTTP ${response.code}")
+        }
+        val bodyString = response.body?.string() ?: "{}"
+        val parsedJson = json.parseToJsonElement(bodyString).jsonObject
+        return InnerTubeParser.parseSearchSuggestions(parsedJson)
+    }
+
     suspend fun browse(
         browseId: String,
         continuation: String? = null

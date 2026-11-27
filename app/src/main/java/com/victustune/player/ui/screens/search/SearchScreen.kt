@@ -1,7 +1,9 @@
 package com.victustune.player.ui.screens.search
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,12 +11,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,36 +28,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.model.*
-import com.victustune.player.data.remote.innertube.SearchFilter
 import com.victustune.player.ui.components.TrackItem
 import com.victustune.player.ui.theme.*
 import com.victustune.player.ui.viewmodel.OnlineSearchUiState
-
-enum class SearchCategory(val title: String, val filter: SearchFilter?) {
-    LOCAL("Local", null),
-    SONGS("Songs", SearchFilter.SONGS),
-    ALBUMS("Albums", SearchFilter.ALBUMS),
-    ARTISTS("Artists", SearchFilter.ARTISTS),
-    PLAYLISTS("Playlists", SearchFilter.PLAYLISTS)
-}
+import com.victustune.player.ui.viewmodel.SearchCategory
+import com.victustune.player.ui.viewmodel.SearchViewModel
 
 @Composable
 fun SearchScreen(
-    allSongs: List<Song>,
+    searchViewModel: SearchViewModel,
     currentPlayingSongId: Long?,
-    recentSearches: List<String>,
-    onlineSearchState: OnlineSearchUiState,
     onBack: () -> Unit,
-    onPerformSearch: (String, SearchFilter) -> Unit,
-    onDeleteRecentSearch: (String) -> Unit,
-    onClearRecentSearches: () -> Unit,
-    onSongClick: (Song) -> Unit,
+    onSongClick: (Song, List<Song>) -> Unit,
     onRemoteTrackClick: (RemoteTrack) -> Unit,
     onRemoteAlbumClick: (RemoteAlbum) -> Unit,
     onRemoteArtistClick: (RemoteArtist) -> Unit,
@@ -71,8 +65,14 @@ fun SearchScreen(
     onToggleDownload: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(SearchCategory.LOCAL) }
+    val searchQuery by searchViewModel.searchQuery.collectAsStateWithLifecycle()
+    val selectedCategory by searchViewModel.selectedCategory.collectAsStateWithLifecycle()
+    val onlineSearchState by searchViewModel.onlineSearchState.collectAsStateWithLifecycle()
+    val searchSuggestions by searchViewModel.searchSuggestions.collectAsStateWithLifecycle()
+    val isOfflineFallback by searchViewModel.isOfflineFallback.collectAsStateWithLifecycle()
+    val filteredLocalSongs by searchViewModel.filteredLocalSongs.collectAsStateWithLifecycle()
+    val recentSearches by searchViewModel.recentSearches.collectAsStateWithLifecycle()
+
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(searchQuery) {
@@ -81,31 +81,9 @@ fun SearchScreen(
 
     // Priority 3: Clear active search query and dismiss keyboard before closing search screen
     BackHandler(enabled = searchQuery.isNotEmpty() && !isOverlayActive) {
-        searchQuery = ""
+        searchViewModel.clearQuery()
         focusManager.clearFocus()
         onQueryActiveChange(false)
-    }
-
-    // Filtered local songs
-    val filteredLocalSongs = remember(searchQuery, allSongs) {
-        val query = searchQuery.trim().lowercase()
-        if (query.isEmpty()) {
-            emptyList()
-        } else {
-            allSongs.filter { song ->
-                song.title.lowercase().contains(query) ||
-                        song.artist.lowercase().contains(query) ||
-                        song.album.lowercase().contains(query)
-            }
-        }
-    }
-
-    // Trigger online search whenever category or query changes (debounced by user action)
-    fun executeSearch(query: String, category: SearchCategory) {
-        if (category != SearchCategory.LOCAL && query.isNotBlank()) {
-            val filter = category.filter ?: SearchFilter.ALL
-            onPerformSearch(query, filter)
-        }
     }
 
     Column(
@@ -130,13 +108,8 @@ fun SearchScreen(
 
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    if (selectedCategory != SearchCategory.LOCAL && it.isNotBlank()) {
-                        executeSearch(it, selectedCategory)
-                    }
-                },
-                placeholder = { Text("Search songs, artists, albums...", color = TextTertiary) },
+                onValueChange = { searchViewModel.onQueryChanged(it) },
+                placeholder = { Text("Search YouTube Music or local...", color = TextTertiary) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
@@ -147,7 +120,7 @@ fun SearchScreen(
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = {
-                            searchQuery = ""
+                            searchViewModel.clearQuery()
                             focusManager.clearFocus()
                             onQueryActiveChange(false)
                         }) {
@@ -159,6 +132,13 @@ fun SearchScreen(
                         }
                     }
                 },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        focusManager.clearFocus()
+                        searchViewModel.submitSearch()
+                    }
+                ),
                 singleLine = true,
                 shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -175,7 +155,7 @@ fun SearchScreen(
             )
         }
 
-        // Filter Chips Row
+        // Filter Chips Row: Songs (default), Albums, Artists, Playlists, Local
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -184,12 +164,7 @@ fun SearchScreen(
                 val isSelected = category == selectedCategory
                 FilterChip(
                     selected = isSelected,
-                    onClick = {
-                        selectedCategory = category
-                        if (searchQuery.isNotBlank()) {
-                            executeSearch(searchQuery, category)
-                        }
-                    },
+                    onClick = { searchViewModel.onCategorySelected(category) },
                     label = {
                         Text(
                             text = category.title,
@@ -197,16 +172,76 @@ fun SearchScreen(
                         )
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = VividCyan.copy(alpha = 0.2f),
+                        selectedContainerColor = VividCyan.copy(alpha = 0.22f),
                         selectedLabelColor = VividCyan,
                         containerColor = DarkSurfaceVariant,
                         labelColor = TextSecondary
-                    )
+                    ),
+                    border = if (isSelected) {
+                        FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = true,
+                            selectedBorderColor = VividCyan.copy(alpha = 0.6f),
+                            selectedBorderWidth = 1.dp
+                        )
+                    } else {
+                        null
+                    }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        // Live InnerTube Search Suggestions while typing online
+        if (searchQuery.isNotBlank() &&
+            selectedCategory != SearchCategory.LOCAL &&
+            !isOfflineFallback &&
+            searchSuggestions.isNotEmpty()
+        ) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(
+                    items = searchSuggestions,
+                    key = { it },
+                    contentType = { "search_suggestion" }
+                ) { suggestion ->
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(DarkSurfaceVariant.copy(alpha = 0.7f))
+                            .border(
+                                width = 0.5.dp,
+                                color = Color.White.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .clickable {
+                                focusManager.clearFocus()
+                                searchViewModel.submitSearch(suggestion)
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = VividCyan,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = suggestion,
+                            color = TextPrimary,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
 
         // Content Area
         if (searchQuery.isEmpty()) {
@@ -227,7 +262,7 @@ fun SearchScreen(
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = TextPrimary
                         )
-                        TextButton(onClick = onClearRecentSearches) {
+                        TextButton(onClick = { searchViewModel.clearRecentSearches() }) {
                             Text("Clear All", color = TextTertiary, fontSize = 12.sp)
                         }
                     }
@@ -238,14 +273,18 @@ fun SearchScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         contentPadding = PaddingValues(start = 0.dp, top = 0.dp, end = 0.dp, bottom = 160.dp)
                     ) {
-                        items(recentSearches) { query ->
+                        items(
+                            items = recentSearches,
+                            key = { it },
+                            contentType = { "recent_search" }
+                        ) { query ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable {
-                                        searchQuery = query
-                                        executeSearch(query, selectedCategory)
+                                        focusManager.clearFocus()
+                                        searchViewModel.submitSearch(query)
                                     }
                                     .padding(vertical = 10.dp, horizontal = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -266,7 +305,7 @@ fun SearchScreen(
                                     )
                                 }
                                 IconButton(
-                                    onClick = { onDeleteRecentSearch(query) },
+                                    onClick = { searchViewModel.deleteRecentSearch(query) },
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
@@ -294,139 +333,310 @@ fun SearchScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Search music locally and online",
+                            text = "Search YouTube Music & your library",
                             color = TextTertiary,
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
                 }
             }
-        } else if (selectedCategory == SearchCategory.LOCAL) {
-            // Local Search Results
-            if (filteredLocalSongs.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "No local tracks found for \"$searchQuery\"",
-                        color = TextTertiary,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+        } else if (selectedCategory == SearchCategory.LOCAL || isOfflineFallback) {
+            // Local & Downloaded Offline Results (explicit Local filter OR automatic Offline Fallback)
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (isOfflineFallback && selectedCategory != SearchCategory.LOCAL) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(DarkSurfaceVariant)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = VividCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Offline — showing local & downloaded tracks",
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        TextButton(
+                            onClick = { searchViewModel.retrySearch() },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text("Retry", color = VividCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
-            } else {
-                Text(
-                    text = "${filteredLocalSongs.size} local results",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextTertiary,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                )
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 160.dp)
-                ) {
-                    items(filteredLocalSongs, key = { it.id }) { song ->
-                        TrackItem(
-                            song = song,
-                            isPlayingCurrent = song.id == currentPlayingSongId,
-                            onSongClick = { onSongClick(song) },
-                            onToggleFavorite = { onToggleFavorite(song) },
-                            onPlayNext = { onPlayNext(song) },
-                            onAddToQueue = { onAddToQueue(song) },
-                            onAddToPlaylist = { onAddToPlaylist(song) },
-                            onGoToAlbum = { onGoToAlbum(song.albumId) },
-                            onGoToArtist = { onGoToArtist(song.artist) }
+                if (filteredLocalSongs.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (isOfflineFallback) {
+                                "No local or downloaded tracks found for \"$searchQuery\""
+                            } else {
+                                "No local tracks found for \"$searchQuery\""
+                            },
+                            color = TextTertiary,
+                            style = MaterialTheme.typography.bodyLarge
                         )
+                    }
+                } else {
+                    Text(
+                        text = "${filteredLocalSongs.size} local & downloaded results",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextTertiary,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 160.dp)
+                    ) {
+                        items(
+                            items = filteredLocalSongs,
+                            key = { it.id },
+                            contentType = { "local_search_track" }
+                        ) { song ->
+                            val videoId = song.remoteVideoId ?: song.id.toString()
+                            val dlStatus = downloadStates[videoId]
+                                ?: if (song.isDownloaded) DownloadStatus.COMPLETED else DownloadStatus.NOT_DOWNLOADED
+                            val dlProgress = downloadProgress[videoId] ?: 0f
+
+                            TrackItem(
+                                song = song,
+                                isPlayingCurrent = song.id == currentPlayingSongId,
+                                onSongClick = {
+                                    searchViewModel.recordInteractionSearchHistory()
+                                    onSongClick(song, filteredLocalSongs)
+                                },
+                                onToggleFavorite = { onToggleFavorite(song) },
+                                onPlayNext = { onPlayNext(song) },
+                                onAddToQueue = { onAddToQueue(song) },
+                                onAddToPlaylist = { onAddToPlaylist(song) },
+                                downloadStatus = dlStatus,
+                                downloadProgress = dlProgress,
+                                onToggleDownload = { onToggleDownload?.invoke(song) },
+                                onGoToAlbum = if (!song.isRemote) ({ onGoToAlbum(song.albumId) }) else null,
+                                onGoToArtist = { onGoToArtist(song.artist) }
+                            )
+                        }
                     }
                 }
             }
         } else {
-            // Online Search Results
-            when (onlineSearchState) {
+            // Online Search Results (Songs, Albums, Artists, Playlists)
+            when (val state = onlineSearchState) {
                 is OnlineSearchUiState.Loading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = VividCyan)
-                    }
+                    SearchResultsLoadingSkeleton()
                 }
                 is OnlineSearchUiState.Error -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = onlineSearchState.message,
-                            color = Color(0xFFFF5252),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFFF5252),
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Text(
+                                text = state.message,
+                                color = Color(0xFFFF5252),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Button(
+                                onClick = { searchViewModel.retrySearch() },
+                                colors = ButtonDefaults.buttonColors(containerColor = VividCyan),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Retry", color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
                 is OnlineSearchUiState.Idle -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Searching online...",
-                            color = TextTertiary
-                        )
-                    }
+                    SearchResultsLoadingSkeleton()
                 }
                 is OnlineSearchUiState.Success -> {
-                    val result = onlineSearchState.result
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 160.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        when (selectedCategory) {
-                            SearchCategory.SONGS -> {
-                                items(result.tracks) { track ->
-                                    val status = downloadStates[track.videoId] ?: DownloadStatus.NOT_DOWNLOADED
-                                    val prog = downloadProgress[track.videoId] ?: 0f
-                                    RemoteTrackSearchItem(
-                                        track = track,
-                                        onClick = { onRemoteTrackClick(track) },
-                                        onAddToQueue = { onAddToQueue(track.toSong()) },
-                                        onAddToPlaylist = { onAddToPlaylist(track.toSong()) },
-                                        onToggleFavorite = { onToggleFavorite(track.toSong()) },
-                                        downloadStatus = status,
-                                        downloadProgress = prog,
-                                        onToggleDownload = { onToggleDownload?.invoke(track.toSong()) }
-                                    )
+                    val result = state.result
+                    val isEmptyForCategory = when (selectedCategory) {
+                        SearchCategory.SONGS -> result.tracks.isEmpty()
+                        SearchCategory.ALBUMS -> result.albums.isEmpty()
+                        SearchCategory.ARTISTS -> result.artists.isEmpty()
+                        SearchCategory.PLAYLISTS -> result.playlists.isEmpty()
+                        SearchCategory.LOCAL -> true
+                    }
+
+                    if (isEmptyForCategory) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No ${selectedCategory.title.lowercase()} found for \"$searchQuery\"",
+                                color = TextTertiary,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 160.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            when (selectedCategory) {
+                                SearchCategory.SONGS -> {
+                                    items(
+                                        items = result.tracks,
+                                        key = { it.videoId },
+                                        contentType = { "remote_search_track" }
+                                    ) { track ->
+                                        val status = downloadStates[track.videoId] ?: DownloadStatus.NOT_DOWNLOADED
+                                        val prog = downloadProgress[track.videoId] ?: 0f
+                                        RemoteTrackSearchItem(
+                                            track = track,
+                                            onClick = {
+                                                searchViewModel.recordInteractionSearchHistory()
+                                                onRemoteTrackClick(track)
+                                            },
+                                            onAddToQueue = { onAddToQueue(track.toSong()) },
+                                            onAddToPlaylist = { onAddToPlaylist(track.toSong()) },
+                                            onToggleFavorite = { onToggleFavorite(track.toSong()) },
+                                            downloadStatus = status,
+                                            downloadProgress = prog,
+                                            onToggleDownload = { onToggleDownload?.invoke(track.toSong()) }
+                                        )
+                                    }
                                 }
-                            }
-                            SearchCategory.ALBUMS -> {
-                                items(result.albums) { album ->
-                                    RemoteAlbumSearchItem(
-                                        album = album,
-                                        onClick = { onRemoteAlbumClick(album) }
-                                    )
+                                SearchCategory.ALBUMS -> {
+                                    items(
+                                        items = result.albums,
+                                        key = { it.browseId },
+                                        contentType = { "remote_search_album" }
+                                    ) { album ->
+                                        RemoteAlbumSearchItem(
+                                            album = album,
+                                            onClick = {
+                                                searchViewModel.recordInteractionSearchHistory()
+                                                onRemoteAlbumClick(album)
+                                            }
+                                        )
+                                    }
                                 }
-                            }
-                            SearchCategory.ARTISTS -> {
-                                items(result.artists) { artist ->
-                                    RemoteArtistSearchItem(
-                                        artist = artist,
-                                        onClick = { onRemoteArtistClick(artist) }
-                                    )
+                                SearchCategory.ARTISTS -> {
+                                    items(
+                                        items = result.artists,
+                                        key = { it.browseId },
+                                        contentType = { "remote_search_artist" }
+                                    ) { artist ->
+                                        RemoteArtistSearchItem(
+                                            artist = artist,
+                                            onClick = {
+                                                searchViewModel.recordInteractionSearchHistory()
+                                                onRemoteArtistClick(artist)
+                                            }
+                                        )
+                                    }
                                 }
-                            }
-                            SearchCategory.PLAYLISTS -> {
-                                items(result.playlists) { playlist ->
-                                    RemotePlaylistSearchItem(
-                                        playlist = playlist,
-                                        onClick = { onRemotePlaylistClick(playlist) }
-                                    )
+                                SearchCategory.PLAYLISTS -> {
+                                    items(
+                                        items = result.playlists,
+                                        key = { it.browseId },
+                                        contentType = { "remote_search_playlist" }
+                                    ) { playlist ->
+                                        RemotePlaylistSearchItem(
+                                            playlist = playlist,
+                                            onClick = {
+                                                searchViewModel.recordInteractionSearchHistory()
+                                                onRemotePlaylistClick(playlist)
+                                            }
+                                        )
+                                    }
                                 }
+                                SearchCategory.LOCAL -> {}
                             }
-                            else -> {}
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchResultsLoadingSkeleton() {
+    val transition = rememberInfiniteTransition(label = "searchSkeletonShimmer")
+    val alpha by transition.animateFloat(
+        initialValue = 0.28f,
+        targetValue = 0.65f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "searchSkeletonAlpha"
+    )
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(7) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(DarkSurfaceVariant.copy(alpha = alpha))
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.68f)
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(DarkSurfaceVariant.copy(alpha = alpha))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.42f)
+                            .height(11.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(DarkSurfaceVariant.copy(alpha = alpha * 0.85f))
+                    )
                 }
             }
         }
@@ -462,7 +672,7 @@ fun RemoteTrackSearchItem(
                 .background(DarkSurfaceVariant)
         ) {
             AsyncImage(
-                model = track.thumbnailUrl,
+                model = com.victustune.player.data.coil.rememberThumbnailRequest(track.thumbnailUrl, sizePx = 144),
                 contentDescription = track.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -600,7 +810,7 @@ fun RemoteAlbumSearchItem(
                 .background(DarkSurfaceVariant)
         ) {
             AsyncImage(
-                model = album.thumbnailUrl,
+                model = com.victustune.player.data.coil.rememberThumbnailRequest(album.thumbnailUrl, sizePx = 144),
                 contentDescription = album.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -649,7 +859,7 @@ fun RemoteArtistSearchItem(
                 .background(DarkSurfaceVariant)
         ) {
             AsyncImage(
-                model = artist.thumbnailUrl,
+                model = com.victustune.player.data.coil.rememberThumbnailRequest(artist.thumbnailUrl, sizePx = 144),
                 contentDescription = artist.name,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -696,7 +906,7 @@ fun RemotePlaylistSearchItem(
                 .background(DarkSurfaceVariant)
         ) {
             AsyncImage(
-                model = playlist.thumbnailUrl,
+                model = com.victustune.player.data.coil.rememberThumbnailRequest(playlist.thumbnailUrl, sizePx = 144),
                 contentDescription = playlist.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

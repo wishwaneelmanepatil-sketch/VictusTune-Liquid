@@ -1,10 +1,14 @@
 package com.victustune.player.data.model
 
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import com.victustune.player.data.remote.innertube.ThumbnailUtils
 
+@Immutable
 sealed class TrackSource {
+    @Immutable
     data class Local(val uri: Uri) : TrackSource()
+    @Immutable
     data class Remote(
         val videoId: String,
         val thumbnailUrl: String? = null,
@@ -12,6 +16,7 @@ sealed class TrackSource {
     ) : TrackSource()
 }
 
+@Immutable
 data class Song(
     val id: Long,
     val title: String,
@@ -35,15 +40,16 @@ data class Song(
     val remoteVideoId: String?
         get() = (source as? TrackSource.Remote)?.videoId
 
-    val durationFormatted: String
-        get() {
-            val totalSeconds = durationMs / 1000
-            val minutes = totalSeconds / 60
-            val seconds = totalSeconds % 60
-            return "%d:%02d".format(minutes, seconds)
-        }
+    val durationFormatted: String = formatDurationMs(durationMs)
 
     companion object {
+        fun formatDurationMs(durationMs: Long): String {
+            val totalSeconds = (durationMs.coerceAtLeast(0L)) / 1000L
+            val minutes = totalSeconds / 60L
+            val seconds = totalSeconds % 60L
+            val secPrefix = if (seconds < 10L) "0" else ""
+            return "$minutes:$secPrefix$seconds"
+        }
         fun fromRemote(
             videoId: String,
             title: String,

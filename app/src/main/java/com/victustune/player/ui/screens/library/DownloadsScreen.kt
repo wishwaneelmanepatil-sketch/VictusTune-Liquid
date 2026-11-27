@@ -31,9 +31,11 @@ import com.victustune.player.ui.theme.*
 
 @Composable
 fun DownloadsScreen(
-    downloadedSongs: List<Song>,
-    allDownloads: List<DownloadedTrackEntity>,
-    downloadStates: Map<String, DownloadStatus>,
+    downloadedSongsCount: Int,
+    filteredCompletedSongs: List<Song>,
+    activeDownloads: List<DownloadedTrackEntity>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
     downloadProgress: Map<String, Float>,
     totalSizeBytes: Long,
     currentPlayingSongId: Long?,
@@ -47,25 +49,7 @@ fun DownloadsScreen(
     onRemoveDownload: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
-
-    val filteredCompletedSongs = remember(downloadedSongs, searchQuery) {
-        if (searchQuery.isBlank()) {
-            downloadedSongs
-        } else {
-            val q = searchQuery.trim().lowercase()
-            downloadedSongs.filter {
-                it.title.lowercase().contains(q) ||
-                        it.artist.lowercase().contains(q) ||
-                        it.album.lowercase().contains(q)
-            }
-        }
-    }
-
-    val activeDownloads = remember(allDownloads) {
-        allDownloads.filter { it.status == "DOWNLOADING" || it.status == "QUEUED" }
-    }
 
     val formattedTotalSize = remember(totalSizeBytes) {
         formatBytes(totalSizeBytes)
@@ -87,7 +71,7 @@ fun DownloadsScreen(
             if (isSearchActive) {
                 OutlinedTextField(
                     value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    onValueChange = onSearchQueryChange,
                     placeholder = { Text("Search downloads...", color = TextTertiary, fontSize = 14.sp) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -100,7 +84,7 @@ fun DownloadsScreen(
                     shape = RoundedCornerShape(24.dp),
                     trailingIcon = {
                         IconButton(onClick = {
-                            searchQuery = ""
+                            onSearchQueryChange("")
                             isSearchActive = false
                         }) {
                             Icon(Icons.Default.Close, contentDescription = "Close search", tint = TextSecondary)
@@ -116,7 +100,7 @@ fun DownloadsScreen(
                         color = TextPrimary
                     )
                     Text(
-                        text = "${downloadedSongs.size} tracks • $formattedTotalSize",
+                        text = "$downloadedSongsCount tracks • $formattedTotalSize",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -182,7 +166,11 @@ fun DownloadsScreen(
                     )
                 }
 
-                items(activeDownloads, key = { "active_${it.videoId}" }) { downloadItem ->
+                items(
+                    items = activeDownloads,
+                    key = { "active_${it.videoId}" },
+                    contentType = { "active_download" }
+                ) { downloadItem ->
                     val progress = downloadProgress[downloadItem.videoId] ?: downloadItem.progress
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
@@ -266,7 +254,11 @@ fun DownloadsScreen(
                     }
                 }
             } else {
-                items(filteredCompletedSongs, key = { it.id }) { song ->
+                items(
+                    items = filteredCompletedSongs,
+                    key = { it.id },
+                    contentType = { "downloaded_track" }
+                ) { song ->
                     val videoId = song.remoteVideoId ?: song.id.toString()
                     TrackItem(
                         song = song,

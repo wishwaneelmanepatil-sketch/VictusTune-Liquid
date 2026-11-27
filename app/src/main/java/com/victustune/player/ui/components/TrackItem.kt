@@ -56,12 +56,9 @@ fun TrackItem(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Album art thumbnail
+        // Album art thumbnail (explicitly downsampled for smooth list scrolling)
         AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(song.albumArtUri)
-                .crossfade(true)
-                .build(),
+            model = com.victustune.player.data.coil.rememberThumbnailRequest(song.albumArtUri, sizePx = 144),
             contentDescription = "${song.title} artwork",
             contentScale = ContentScale.Crop,
             modifier = Modifier

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -88,7 +89,11 @@ fun ExploreScreen(
                     contentPadding = PaddingValues(top = 12.dp, bottom = 160.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    items(result.sections) { section ->
+                    itemsIndexed(
+                        items = result.sections,
+                        key = { index, section -> "${index}_${section.title}" },
+                        contentType = { _, _ -> "explore_section" }
+                    ) { _, section ->
                         ExploreSectionRow(
                             section = section,
                             onTrackClick = onTrackClick,
@@ -139,7 +144,11 @@ fun ExploreSectionRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                items(section.tracks) { track ->
+                itemsIndexed(
+                    items = section.tracks,
+                    key = { index, track -> "${index}_${track.videoId}" },
+                    contentType = { _, _ -> "explore_track_card" }
+                ) { _, track ->
                     RemoteTrackCard(
                         track = track,
                         onClick = { onTrackClick(track) }
@@ -154,7 +163,11 @@ fun ExploreSectionRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                items(section.albums) { album ->
+                itemsIndexed(
+                    items = section.albums,
+                    key = { index, album -> "${index}_${album.browseId}" },
+                    contentType = { _, _ -> "explore_album_card" }
+                ) { _, album ->
                     RemoteAlbumCard(
                         album = album,
                         onClick = { onAlbumClick(album) }
@@ -169,7 +182,11 @@ fun ExploreSectionRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                items(section.artists) { artist ->
+                itemsIndexed(
+                    items = section.artists,
+                    key = { index, artist -> "${index}_${artist.browseId}" },
+                    contentType = { _, _ -> "explore_artist_card" }
+                ) { _, artist ->
                     RemoteArtistCard(
                         artist = artist,
                         onClick = { onArtistClick(artist) }
@@ -184,7 +201,11 @@ fun ExploreSectionRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                items(section.playlists) { playlist ->
+                itemsIndexed(
+                    items = section.playlists,
+                    key = { index, playlist -> "${index}_${playlist.browseId}" },
+                    contentType = { _, _ -> "explore_playlist_card" }
+                ) { _, playlist ->
                     RemotePlaylistCard(
                         playlist = playlist,
                         onClick = { onPlaylistClick(playlist) }
@@ -214,7 +235,7 @@ fun RemoteTrackCard(
                 .background(DarkSurfaceVariant)
         ) {
             AsyncImage(
-                model = track.thumbnailUrl,
+                model = com.victustune.player.data.coil.rememberThumbnailRequest(track.thumbnailUrl, sizePx = 280),
                 contentDescription = track.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -273,7 +294,7 @@ fun RemoteAlbumCard(
                 .background(DarkSurfaceVariant)
         ) {
             AsyncImage(
-                model = album.thumbnailUrl,
+                model = com.victustune.player.data.coil.rememberThumbnailRequest(album.thumbnailUrl, sizePx = 280),
                 contentDescription = album.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -317,7 +338,7 @@ fun RemoteArtistCard(
                 .background(DarkSurfaceVariant)
         ) {
             AsyncImage(
-                model = artist.thumbnailUrl,
+                model = com.victustune.player.data.coil.rememberThumbnailRequest(artist.thumbnailUrl, sizePx = 240),
                 contentDescription = artist.name,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -358,7 +379,7 @@ fun RemotePlaylistCard(
                 .background(DarkSurfaceVariant)
         ) {
             AsyncImage(
-                model = playlist.thumbnailUrl,
+                model = com.victustune.player.data.coil.rememberThumbnailRequest(playlist.thumbnailUrl, sizePx = 280),
                 contentDescription = playlist.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

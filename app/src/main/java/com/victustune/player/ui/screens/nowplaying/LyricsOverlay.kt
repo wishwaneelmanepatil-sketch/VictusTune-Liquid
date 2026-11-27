@@ -20,26 +20,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.victustune.player.data.model.LyricLine
+import com.victustune.player.data.model.PlaybackProgressState
 import com.victustune.player.ui.theme.TextPrimary
 import com.victustune.player.ui.theme.TextSecondary
 import com.victustune.player.ui.theme.TextTertiary
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun LyricsOverlay(
     lyrics: List<LyricLine>,
-    currentPositionMs: Long,
+    progressStateFlow: StateFlow<PlaybackProgressState>,
     accentColor: Color,
     onSeek: (Long) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
+    val progressState by progressStateFlow.collectAsStateWithLifecycle()
 
-    // Find active lyric line index
-    val activeIndex = remember(lyrics, currentPositionMs) {
-        val idx = lyrics.indexOfLast { it.timeMs <= currentPositionMs }
-        if (idx == -1) 0 else idx
+    // Derive active index so the LazyColumn only recomposes when the highlighted lyric line changes
+    val activeIndex by remember(lyrics) {
+        derivedStateOf {
+            val pos = progressState.currentPositionMs
+            val idx = lyrics.indexOfLast { it.timeMs <= pos }
+            if (idx == -1) 0 else idx
+        }
     }
 
     // Auto-scroll to active lyric line
@@ -100,7 +107,11 @@ fun LyricsOverlay(
                     contentPadding = PaddingValues(top = 100.dp, bottom = 200.dp),
                     verticalArrangement = Arrangement.spacedBy(22.dp)
                 ) {
-                    itemsIndexed(lyrics) { index, line ->
+                    itemsIndexed(
+                        items = lyrics,
+                        key = { index, line -> "${index}_${line.timeMs}" },
+                        contentType = { _, _ -> "lyric_line" }
+                    ) { index, line ->
                         val isCurrent = index == activeIndex
                         val textColor by animateColorAsState(
                             targetValue = if (isCurrent) Color.White else TextTertiary,

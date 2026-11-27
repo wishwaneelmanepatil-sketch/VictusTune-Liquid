@@ -1,13 +1,8 @@
 package com.victustune.player.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -23,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -30,14 +26,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.victustune.player.data.model.PlaybackState
+import coil.size.Precision
+import com.victustune.player.data.model.PlaybackProgressState
+import com.victustune.player.data.model.PlaybackUiState
 import com.victustune.player.ui.theme.*
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun MiniPlayer(
-    playbackState: PlaybackState,
+    playbackState: PlaybackUiState,
+    progressStateFlow: StateFlow<PlaybackProgressState>,
     accentColor: Color,
     onExpand: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -48,11 +49,6 @@ fun MiniPlayer(
     val song = playbackState.currentSong ?: return
 
     var totalDragOffset by remember { mutableFloatStateOf(0f) }
-    val animatedProgress by animateFloatAsState(
-        targetValue = playbackState.progress,
-        animationSpec = tween(durationMillis = 200),
-        label = "miniPlayerProgress"
-    )
 
     Box(
         modifier = modifier
@@ -82,12 +78,18 @@ fun MiniPlayer(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Album artwork thumbnail
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
+                // Album artwork thumbnail (downsampled for list/miniplayer display)
+                val context = LocalContext.current
+                val artworkRequest = remember(song.albumArtUri) {
+                    ImageRequest.Builder(context)
                         .data(song.albumArtUri)
+                        .size(144, 144)
+                        .precision(Precision.INEXACT)
                         .crossfade(true)
-                        .build(),
+                        .build()
+                }
+                AsyncImage(
+                    model = artworkRequest,
                     contentDescription = "Cover",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -152,24 +154,45 @@ fun MiniPlayer(
                 }
             }
 
-            // Animated Micro-Progress Bar along bottom edge
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .background(Color.White.copy(alpha = 0.1f))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction = animatedProgress)
-                        .fillMaxHeight()
-                        .background(
-                            Brush.horizontalGradient(
-                                colors = listOf(accentColor.copy(alpha = 0.7f), accentColor, VividCyan)
-                            )
-                        )
-                )
-            }
+            // Isolated leaf micro-progress bar (only this leaf recomposes/draws on progress ticks)
+            MiniPlayerProgressBar(
+                progressStateFlow = progressStateFlow,
+                accentColor = accentColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun MiniPlayerProgressBar(
+    progressStateFlow: StateFlow<PlaybackProgressState>,
+    accentColor: Color
+) {
+    val progressState by progressStateFlow.collectAsStateWithLifecycle()
+    val animatedProgress by animateFloatAsState(
+        targetValue = progressState.progress,
+        animationSpec = tween(durationMillis = 200),
+        label = "miniPlayerProgress"
+    )
+    val trackColor = Color.White.copy(alpha = 0.1f)
+    val progressBrush = remember(accentColor) {
+        Brush.horizontalGradient(
+            colors = listOf(accentColor.copy(alpha = 0.7f), accentColor, VividCyan)
+        )
+    }
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(3.dp)
+    ) {
+        drawRect(color = trackColor)
+        val fillWidth = (size.width * animatedProgress.coerceIn(0f, 1f))
+        if (fillWidth > 0f) {
+            drawRect(
+                brush = progressBrush,
+                size = Size(width = fillWidth, height = size.height)
+            )
         }
     }
 }

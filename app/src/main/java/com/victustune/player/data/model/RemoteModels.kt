@@ -1,5 +1,6 @@
 package com.victustune.player.data.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -10,6 +11,7 @@ enum class AudioQuality {
     LOW
 }
 
+@Immutable
 data class RemoteTrack(
     val videoId: String,
     val title: String,
@@ -31,6 +33,7 @@ data class RemoteTrack(
     )
 }
 
+@Immutable
 data class RemoteAlbum(
     val browseId: String,
     val title: String,
@@ -40,6 +43,7 @@ data class RemoteAlbum(
     val trackCount: Int = 0
 )
 
+@Immutable
 data class RemoteArtist(
     val browseId: String,
     val name: String,
@@ -47,6 +51,7 @@ data class RemoteArtist(
     val thumbnailUrl: String? = null
 )
 
+@Immutable
 data class RemotePlaylist(
     val browseId: String,
     val title: String,
@@ -55,6 +60,7 @@ data class RemotePlaylist(
     val thumbnailUrl: String? = null
 )
 
+@Immutable
 data class SearchResult(
     val tracks: List<RemoteTrack> = emptyList(),
     val albums: List<RemoteAlbum> = emptyList(),
@@ -63,6 +69,7 @@ data class SearchResult(
     val continuationToken: String? = null
 )
 
+@Immutable
 data class BrowseSection(
     val title: String,
     val subtitle: String? = null,
@@ -72,6 +79,7 @@ data class BrowseSection(
     val artists: List<RemoteArtist> = emptyList()
 )
 
+@Immutable
 data class BrowseResult(
     val title: String? = null,
     val headerThumbnailUrl: String? = null,

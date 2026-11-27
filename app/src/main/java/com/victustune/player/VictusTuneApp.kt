@@ -156,6 +156,7 @@ class VictusTuneApp : Application(), ImageLoaderFactory {
                 add(AudioArtworkFetcher.Factory(this@VictusTuneApp))
                 add(HighResThumbnailInterceptor())
             }
+            .allowHardware(true)
             .crossfade(true)
             .diskCache {
                 DiskCache.Builder()

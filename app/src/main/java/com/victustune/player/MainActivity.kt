@@ -42,6 +42,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        viewModel.setAppInForeground(true)
+    }
+
+    override fun onStop() {
+        viewModel.setAppInForeground(false)
+        super.onStop()
+    }
+
     private fun checkAndRequestPermissions() {
         val permissionsToRequest = mutableListOf<String>()
 

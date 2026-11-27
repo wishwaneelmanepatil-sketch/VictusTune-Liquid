@@ -42,15 +42,6 @@ fun TracksScreen(
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
 
-    val sortedSongs = remember(songs, sortOption) {
-        when (sortOption) {
-            SortOption.TITLE -> songs.sortedBy { it.title.lowercase() }
-            SortOption.ARTIST -> songs.sortedBy { it.artist.lowercase() }
-            SortOption.DATE_ADDED -> songs.sortedByDescending { it.dateAdded }
-            SortOption.DURATION -> songs.sortedByDescending { it.durationMs }
-        }
-    }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -161,7 +152,11 @@ fun TracksScreen(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             contentPadding = PaddingValues(bottom = 160.dp)
         ) {
-            items(sortedSongs, key = { it.id }) { song ->
+            items(
+                items = songs,
+                key = { it.id },
+                contentType = { "track" }
+            ) { song ->
                 val videoId = song.remoteVideoId ?: song.id.toString()
                 val status = downloadStates[videoId] ?: if (song.isDownloaded) DownloadStatus.COMPLETED else DownloadStatus.NOT_DOWNLOADED
                 val progress = downloadProgress[videoId] ?: 0f

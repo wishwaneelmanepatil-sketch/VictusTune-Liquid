@@ -33,13 +33,6 @@ sealed class ExploreUiState {
     data class Error(val message: String) : ExploreUiState()
 }
 
-sealed class OnlineSearchUiState {
-    object Idle : OnlineSearchUiState()
-    object Loading : OnlineSearchUiState()
-    data class Success(val result: SearchResult) : OnlineSearchUiState()
-    data class Error(val message: String) : OnlineSearchUiState()
-}
-
 sealed class ImportDialogState {
     object Idle : ImportDialogState()
     object Parsing : ImportDialogState()
@@ -104,6 +97,33 @@ class PlayerViewModel(
     val downloadQuality: StateFlow<String> = downloadRepository.downloadQualityFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, "High")
 
+    private val _downloadSearchQuery = MutableStateFlow("")
+    val downloadSearchQuery: StateFlow<String> = _downloadSearchQuery.asStateFlow()
+
+    val filteredDownloadedSongs: StateFlow<List<Song>> = combine(
+        downloadedSongs,
+        _downloadSearchQuery
+    ) { list, query ->
+        if (query.isBlank()) {
+            list
+        } else {
+            val q = query.trim().lowercase()
+            list.filter {
+                it.title.lowercase().contains(q) ||
+                    it.artist.lowercase().contains(q) ||
+                    it.album.lowercase().contains(q)
+            }
+        }
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val activeDownloads: StateFlow<List<com.victustune.player.data.local.entity.DownloadedTrackEntity>> =
+        allDownloads
+            .map { list -> list.filter { it.status == "DOWNLOADING" || it.status == "QUEUED" } }
+            .flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Local library
     val songs: StateFlow<List<Song>> = audioRepository.songsFlow
     val albums: StateFlow<List<Album>> = audioRepository.albumsFlow
@@ -118,11 +138,23 @@ class PlayerViewModel(
     val favoriteSongIds: StateFlow<Set<Long>> = playlistRepository.getFavoriteSongIds()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
-    val playbackState: StateFlow<PlaybackState> = musicController.playbackState
+    val playbackState: StateFlow<PlaybackUiState> = musicController.playbackState
+    val progressState: StateFlow<PlaybackProgressState> = musicController.progressState
     val sleepTimerRemainingSeconds: StateFlow<Int?> = musicController.sleepTimerRemainingSeconds
 
     val sortOption: StateFlow<SortOption> = preferencesManager.sortOptionFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, SortOption.TITLE)
+
+    val sortedSongs: StateFlow<List<Song>> = combine(songs, sortOption) { list, sort ->
+        when (sort) {
+            SortOption.TITLE -> list.sortedBy { it.title.lowercase() }
+            SortOption.ARTIST -> list.sortedBy { it.artist.lowercase() }
+            SortOption.DATE_ADDED -> list.sortedByDescending { it.dateAdded }
+            SortOption.DURATION -> list.sortedByDescending { it.durationMs }
+        }
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val audioQuality: StateFlow<AudioQuality> = preferencesManager.audioQualityFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, AudioQuality.AUTO)
@@ -136,13 +168,6 @@ class PlayerViewModel(
     // Online Explore Feed
     private val _exploreState = MutableStateFlow<ExploreUiState>(ExploreUiState.Loading)
     val exploreState: StateFlow<ExploreUiState> = _exploreState.asStateFlow()
-
-    // Online Search
-    private val _onlineSearchState = MutableStateFlow<OnlineSearchUiState>(OnlineSearchUiState.Idle)
-    val onlineSearchState: StateFlow<OnlineSearchUiState> = _onlineSearchState.asStateFlow()
-
-    val recentSearches: StateFlow<List<String>> = streamingRepository.recentSearches
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     // YouTube Music Account & Synced Playlists
     val authState: StateFlow<AuthState> = streamingRepository.authState
@@ -247,36 +272,6 @@ class PlayerViewModel(
         }
     }
 
-    fun searchOnline(query: String, filter: SearchFilter = SearchFilter.ALL) {
-        if (query.isBlank()) {
-            _onlineSearchState.value = OnlineSearchUiState.Idle
-            return
-        }
-
-        viewModelScope.launch {
-            _onlineSearchState.value = OnlineSearchUiState.Loading
-            streamingRepository.saveSearchQuery(query)
-            try {
-                val result = streamingRepository.search(query, filter)
-                _onlineSearchState.value = OnlineSearchUiState.Success(result)
-            } catch (e: Exception) {
-                _onlineSearchState.value = OnlineSearchUiState.Error(e.message ?: "Online search failed")
-            }
-        }
-    }
-
-    fun deleteRecentSearch(query: String) {
-        viewModelScope.launch {
-            streamingRepository.deleteSearchQuery(query)
-        }
-    }
-
-    fun clearRecentSearches() {
-        viewModelScope.launch {
-            streamingRepository.clearSearchHistory()
-        }
-    }
-
     suspend fun loadBrowseDetail(browseId: String): BrowseResult {
         return streamingRepository.browse(browseId)
     }
@@ -338,6 +333,8 @@ class PlayerViewModel(
     fun removeFromQueue(index: Int) = musicController.removeFromQueue(index)
 
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = musicController.moveQueueItem(fromIndex, toIndex)
+
+    fun playQueueIndex(index: Int) = musicController.playQueueIndex(index)
 
     fun toggleFavorite(song: Song) {
         viewModelScope.launch {
@@ -535,6 +532,12 @@ class PlayerViewModel(
                 _transferMessage.tryEmit("Export failed: ${err.message ?: "Unable to write file"}")
             }
         }
+    }
+
+    fun setAppInForeground(inForeground: Boolean) = musicController.setAppInForeground(inForeground)
+
+    fun setDownloadSearchQuery(query: String) {
+        _downloadSearchQuery.value = query
     }
 
     fun setSleepTimer(minutes: Int) = musicController.setSleepTimer(minutes)

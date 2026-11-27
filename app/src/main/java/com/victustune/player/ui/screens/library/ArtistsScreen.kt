@@ -48,7 +48,11 @@ fun ArtistsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 160.dp)
         ) {
-            items(artists, key = { it.id }) { artist ->
+            items(
+                items = artists,
+                key = { it.id },
+                contentType = { "artist_row" }
+            ) { artist ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

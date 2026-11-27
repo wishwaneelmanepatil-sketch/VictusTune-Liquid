@@ -481,4 +481,21 @@ object InnerTubeParser {
 
         return playlists.distinctBy { it.browseId }
     }
+
+    fun parseSearchSuggestions(json: JsonObject): List<String> {
+        val suggestions = mutableListOf<String>()
+        findAllObjects(json, "searchSuggestionRenderer") { renderer ->
+            val text = extractText(renderer["suggestion"]).trim()
+            if (text.isNotEmpty() && !suggestions.contains(text)) {
+                suggestions.add(text)
+            }
+        }
+        findAllObjects(json, "historySuggestionRenderer") { renderer ->
+            val text = extractText(renderer["suggestion"]).trim()
+            if (text.isNotEmpty() && !suggestions.contains(text)) {
+                suggestions.add(text)
+            }
+        }
+        return suggestions.take(8)
+    }
 }

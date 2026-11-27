@@ -34,16 +34,19 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.model.LyricLine
-import com.victustune.player.data.model.PlaybackState
+import com.victustune.player.data.model.PlaybackProgressState
+import com.victustune.player.data.model.PlaybackUiState
 import com.victustune.player.data.model.RepeatMode
 import com.victustune.player.data.remote.innertube.ThumbnailUtils
 import com.victustune.player.ui.components.MarqueeText
 import com.victustune.player.ui.components.WaveformScrubber
 import com.victustune.player.ui.theme.*
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun NowPlayingSheet(
-    playbackState: PlaybackState,
+    playbackState: PlaybackUiState,
+    progressStateFlow: StateFlow<PlaybackProgressState>,
     lyrics: List<LyricLine>,
     accentColor: Color,
     onDismiss: () -> Unit,
@@ -72,13 +75,15 @@ fun NowPlayingSheet(
     var horizontalDragOffset by remember { mutableFloatStateOf(0f) }
 
     // Dynamic gradient background
-    val backgroundBrush = Brush.verticalGradient(
-        colors = listOf(
-            accentColor.copy(alpha = 0.45f),
-            DarkBackground.copy(alpha = 0.95f),
-            DarkBackground
+    val backgroundBrush = remember(accentColor) {
+        Brush.verticalGradient(
+            colors = listOf(
+                accentColor.copy(alpha = 0.45f),
+                DarkBackground.copy(alpha = 0.95f),
+                DarkBackground
+            )
         )
-    )
+    }
 
     Box(
         modifier = modifier
@@ -209,7 +214,7 @@ fun NowPlayingSheet(
                     } else {
                         LyricsOverlay(
                             lyrics = lyrics,
-                            currentPositionMs = playbackState.currentPositionMs,
+                            progressStateFlow = progressStateFlow,
                             accentColor = accentColor,
                             onSeek = onSeek,
                             onClose = { showLyrics = false }
@@ -312,10 +317,9 @@ fun NowPlayingSheet(
                 }
             }
 
-            // Custom Smooth Scrubber / Waveform Slider with Elapsed & Remaining timestamps
+            // Custom Smooth Scrubber / Waveform Slider isolated inside leaf WaveformScrubber
             WaveformScrubber(
-                currentPositionMs = playbackState.currentPositionMs,
-                totalDurationMs = playbackState.totalDurationMs,
+                progressStateFlow = progressStateFlow,
                 accentColor = accentColor,
                 isPlaying = playbackState.isPlaying,
                 onSeek = onSeek,

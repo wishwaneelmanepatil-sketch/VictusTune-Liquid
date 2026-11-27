@@ -290,7 +290,11 @@ fun RemoteDetailScreen(
                     }
                 }
             } else {
-                itemsIndexed(tracks) { index, track ->
+                itemsIndexed(
+                    items = tracks,
+                    key = { index, track -> "${index}_${track.videoId}" },
+                    contentType = { _, _ -> "remote_detail_track" }
+                ) { index, track ->
                     var isMenuOpen by remember { mutableStateOf(false) }
 
                     Row(
@@ -309,7 +313,7 @@ fun RemoteDetailScreen(
 
                         track.thumbnailUrl?.let { thumb ->
                             AsyncImage(
-                                model = thumb,
+                                model = com.victustune.player.data.coil.rememberThumbnailRequest(thumb, sizePx = 144),
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier

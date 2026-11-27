@@ -965,4 +965,31 @@ object VictusIcons {
             }.build()
             return _exportPlaylist!!
         }
+
+    private var _dragHandle: ImageVector? = null
+    val DragHandle: ImageVector
+        get() {
+            if (_dragHandle != null) return _dragHandle!!
+            _dragHandle = ImageVector.Builder(
+                name = "DragHandle",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(20f, 9f)
+                horizontalLineTo(4f)
+                verticalLineToRelative(2f)
+                horizontalLineToRelative(16f)
+                verticalLineTo(9f)
+                close()
+                moveTo(4f, 15f)
+                horizontalLineToRelative(16f)
+                verticalLineToRelative(-2f)
+                horizontalLineTo(4f)
+                verticalLineToRelative(2f)
+                close()
+            }.build()
+            return _dragHandle!!
+        }
 }

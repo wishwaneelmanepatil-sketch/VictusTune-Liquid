@@ -1,7 +1,9 @@
 package com.victustune.player.data.model
 
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class Album(
     val id: Long,
     val title: String,
@@ -11,6 +13,7 @@ data class Album(
     val albumArtUri: Uri? = null
 )
 
+@Immutable
 data class Artist(
     val id: Long,
     val name: String,
@@ -18,6 +21,7 @@ data class Artist(
     val albumCount: Int = 0
 )
 
+@Immutable
 data class Playlist(
     val id: Long,
     val name: String,

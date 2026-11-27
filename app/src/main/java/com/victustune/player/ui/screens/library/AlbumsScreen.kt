@@ -50,7 +50,11 @@ fun AlbumsScreen(
             contentPadding = PaddingValues(bottom = 160.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(albums, key = { it.id }) { album ->
+            items(
+                items = albums,
+                key = { it.id },
+                contentType = { "album_grid_card" }
+            ) { album ->
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -59,10 +63,7 @@ fun AlbumsScreen(
                         .padding(4.dp)
                 ) {
                     AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(album.albumArtUri)
-                            .crossfade(true)
-                            .build(),
+                        model = com.victustune.player.data.coil.rememberThumbnailRequest(album.albumArtUri, sizePx = 320),
                         contentDescription = "${album.title} cover",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier

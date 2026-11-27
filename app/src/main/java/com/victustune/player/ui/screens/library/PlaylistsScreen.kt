@@ -383,7 +383,11 @@ fun PlaylistsScreen(
 
             // Local Custom Playlists
             if (selectedFilter != PlaylistFilter.YOUTUBE_MUSIC) {
-                items(playlists, key = { "local_${it.id}" }) { playlist ->
+                items(
+                    items = playlists,
+                    key = { "local_${it.id}" },
+                    contentType = { "local_playlist" }
+                ) { playlist ->
                     var showMenu by remember { mutableStateOf(false) }
 
                     Row(
@@ -524,7 +528,11 @@ fun PlaylistsScreen(
                             )
                         }
 
-                        items(syncedPlaylists, key = { "yt_${it.browseId}" }) { remotePlaylist ->
+                        items(
+                            items = syncedPlaylists,
+                            key = { "yt_${it.browseId}" },
+                            contentType = { "yt_playlist" }
+                        ) { remotePlaylist ->
                             val isLikedMusic = remotePlaylist.browseId == "VLLM" || remotePlaylist.browseId == "LM"
 
                             Row(
@@ -557,10 +565,7 @@ fun PlaylistsScreen(
                                     }
                                 } else {
                                     AsyncImage(
-                                        model = ImageRequest.Builder(LocalContext.current)
-                                            .data(remotePlaylist.thumbnailUrl?.let { ThumbnailUtils.upgrade(it) } ?: remotePlaylist.thumbnailUrl)
-                                            .crossfade(true)
-                                            .build(),
+                                        model = com.victustune.player.data.coil.rememberThumbnailRequest(remotePlaylist.thumbnailUrl, sizePx = 144),
                                         contentDescription = remotePlaylist.title,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier

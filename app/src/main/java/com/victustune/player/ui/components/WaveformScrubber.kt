@@ -16,40 +16,88 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.victustune.player.data.model.PlaybackProgressState
+import com.victustune.player.data.model.Song
 import com.victustune.player.ui.theme.TextSecondary
+import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.sin
 
 @Composable
 fun WaveformScrubber(
-    currentPositionMs: Long,
-    totalDurationMs: Long,
+    progressStateFlow: StateFlow<PlaybackProgressState>,
     accentColor: Color,
     isPlaying: Boolean,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val progressState by progressStateFlow.collectAsStateWithLifecycle()
+    val currentPositionMs = progressState.currentPositionMs
+    val totalDurationMs = progressState.totalDurationMs
+
     var isDragging by remember { mutableStateOf(false) }
     var dragProgress by remember { mutableFloatStateOf(0f) }
 
-    val actualProgress = if (totalDurationMs > 0) {
-        (currentPositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
-    } else 0f
-
+    val actualProgress = progressState.progress
     val displayedProgress = if (isDragging) dragProgress else actualProgress
     val displayedPositionMs = if (isDragging) (dragProgress * totalDurationMs).toLong() else currentPositionMs
 
-    // Subtle wave animation when playing
-    val infiniteTransition = rememberInfiniteTransition(label = "waveformAnim")
-    val wavePhase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 6.28318f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "wavePhase"
-    )
+    // Subtle wave animation only while actively playing (0 allocations when paused)
+    val wavePhase = if (isPlaying) {
+        val infiniteTransition = rememberInfiniteTransition(label = "waveformAnim")
+        val animated by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 6.28318f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 3000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "wavePhase"
+        )
+        animated
+    } else {
+        0f
+    }
 
+    WaveformScrubberContent(
+        progressProvider = { displayedProgress },
+        wavePhaseProvider = { wavePhase },
+        isPlaying = isPlaying,
+        isDragging = isDragging,
+        displayedPositionMs = displayedPositionMs,
+        totalDurationMs = totalDurationMs,
+        accentColor = accentColor,
+        onDragStart = { p ->
+            isDragging = true
+            dragProgress = p
+        },
+        onDragUpdate = { p -> dragProgress = p },
+        onDragEnd = {
+            isDragging = false
+            onSeek((dragProgress * totalDurationMs).toLong())
+        },
+        onDragCancel = { isDragging = false },
+        onTapSeek = { p -> onSeek((p * totalDurationMs).toLong()) },
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun WaveformScrubberContent(
+    progressProvider: () -> Float,
+    wavePhaseProvider: () -> Float,
+    isPlaying: Boolean,
+    isDragging: Boolean,
+    displayedPositionMs: Long,
+    totalDurationMs: Long,
+    accentColor: Color,
+    onDragStart: (Float) -> Unit,
+    onDragUpdate: (Float) -> Unit,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
+    onTapSeek: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -59,30 +107,22 @@ fun WaveformScrubber(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(44.dp)
-                .pointerInput(totalDurationMs) {
+                .pointerInput(Unit) {
                     detectTapGestures { offset ->
                         val newProgress = (offset.x / size.width).coerceIn(0f, 1f)
-                        val targetMs = (newProgress * totalDurationMs).toLong()
-                        onSeek(targetMs)
+                        onTapSeek(newProgress)
                     }
                 }
-                .pointerInput(totalDurationMs) {
+                .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragStart = { offset ->
-                            isDragging = true
-                            dragProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                            onDragStart((offset.x / size.width).coerceIn(0f, 1f))
                         },
-                        onDragEnd = {
-                            isDragging = false
-                            val targetMs = (dragProgress * totalDurationMs).toLong()
-                            onSeek(targetMs)
-                        },
-                        onDragCancel = {
-                            isDragging = false
-                        },
+                        onDragEnd = { onDragEnd() },
+                        onDragCancel = { onDragCancel() },
                         onHorizontalDrag = { change, _ ->
                             change.consume()
-                            dragProgress = (change.position.x / size.width).coerceIn(0f, 1f)
+                            onDragUpdate((change.position.x / size.width).coerceIn(0f, 1f))
                         }
                     )
                 }
@@ -94,6 +134,8 @@ fun WaveformScrubber(
                 val barWidth = 4.dp.toPx()
                 val spacing = (canvasWidth - (barCount * barWidth)) / (barCount - 1).coerceAtLeast(1)
 
+                val displayedProgress = progressProvider()
+                val wavePhase = wavePhaseProvider()
                 val activeColor = accentColor
                 val inactiveColor = Color.White.copy(alpha = 0.2f)
                 val thumbColor = Color.White
@@ -145,23 +187,16 @@ fun WaveformScrubber(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = formatDuration(displayedPositionMs),
+                text = Song.formatDurationMs(displayedPositionMs),
                 fontSize = 12.sp,
                 color = TextSecondary
             )
             val remainingMs = (totalDurationMs - displayedPositionMs).coerceAtLeast(0L)
             Text(
-                text = "-${formatDuration(remainingMs)}",
+                text = "-${Song.formatDurationMs(remainingMs)}",
                 fontSize = 12.sp,
                 color = TextSecondary
             )
         }
     }
-}
-
-private fun formatDuration(ms: Long): String {
-    val totalSeconds = (ms / 1000).coerceAtLeast(0L)
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%d:%02d".format(minutes, seconds)
 }

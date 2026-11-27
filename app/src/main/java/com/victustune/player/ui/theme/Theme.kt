@@ -1,7 +1,7 @@
 package com.victustune.player.ui.theme
 
-import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
+import android.util.LruCache
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
@@ -10,12 +10,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.palette.graphics.Palette
-import coil.ImageLoader
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
+import coil.size.Precision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+private val paletteAccentCache = LruCache<String, Int>(100)
 
 private val DarkColorScheme = darkColorScheme(
     primary = ElectricPurple,
@@ -63,33 +65,43 @@ fun rememberDynamicAccentColor(
             return@LaunchedEffect
         }
 
-        withContext(Dispatchers.IO) {
-            try {
-                val loader = context.imageLoader
+        val cacheKey = imageUri.toString()
+        paletteAccentCache.get(cacheKey)?.let { cachedRgb ->
+            extractedColor = Color(cachedRgb)
+            return@LaunchedEffect
+        }
+
+        try {
+            val bitmap = withContext(Dispatchers.IO) {
                 val request = ImageRequest.Builder(context)
                     .data(imageUri)
+                    .size(100, 100)
+                    .precision(Precision.INEXACT)
                     .allowHardware(false)
                     .build()
-                val result = loader.execute(request)
+                val result = context.imageLoader.execute(request)
                 if (result is SuccessResult) {
-                    val bitmap = (result.drawable as? BitmapDrawable)?.bitmap
-                    if (bitmap != null) {
-                        val palette = Palette.from(bitmap).generate()
-                        val swatch = palette.vibrantSwatch
-                            ?: palette.darkVibrantSwatch
-                            ?: palette.dominantSwatch
-                            ?: palette.lightVibrantSwatch
-
-                        swatch?.rgb?.let { rgb ->
-                            withContext(Dispatchers.Main) {
-                                extractedColor = Color(rgb)
-                            }
-                        }
-                    }
+                    (result.drawable as? BitmapDrawable)?.bitmap
+                } else {
+                    null
                 }
-            } catch (e: Exception) {
-                // Keep default on error
             }
+            if (bitmap != null) {
+                val rgb = withContext(Dispatchers.Default) {
+                    val palette = Palette.from(bitmap).generate()
+                    val swatch = palette.vibrantSwatch
+                        ?: palette.darkVibrantSwatch
+                        ?: palette.dominantSwatch
+                        ?: palette.lightVibrantSwatch
+                    swatch?.rgb
+                }
+                if (rgb != null) {
+                    paletteAccentCache.put(cacheKey, rgb)
+                    extractedColor = Color(rgb)
+                }
+            }
+        } catch (_: Exception) {
+            // Keep default on error
         }
     }
 
