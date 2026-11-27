@@ -162,6 +162,9 @@ class PlayerViewModel(
     val maxCacheSizeMb: StateFlow<Int> = preferencesManager.maxCacheSizeMbFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, 512)
 
+    val sliderPreferences: StateFlow<SliderPreferences> = preferencesManager.sliderPreferencesFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SliderPreferences())
+
     private val _currentCacheBytes = MutableStateFlow(0L)
     val currentCacheBytes: StateFlow<Long> = _currentCacheBytes.asStateFlow()
 
@@ -543,6 +546,36 @@ class PlayerViewModel(
     fun setSleepTimer(minutes: Int) = musicController.setSleepTimer(minutes)
 
     fun cancelSleepTimer() = musicController.cancelSleepTimer()
+
+    fun setSliderStyle(style: SliderStyle) {
+        viewModelScope.launch { preferencesManager.setSliderStyle(style) }
+    }
+
+    fun cycleSliderStyle() {
+        val values = SliderStyle.entries
+        val next = values[(values.indexOf(sliderPreferences.value.style) + 1) % values.size]
+        setSliderStyle(next)
+    }
+
+    fun setSliderColorMode(mode: SliderColorMode) {
+        viewModelScope.launch { preferencesManager.setSliderColorMode(mode) }
+    }
+
+    fun setShowSliderThumb(show: Boolean) {
+        viewModelScope.launch { preferencesManager.setShowSliderThumb(show) }
+    }
+
+    fun setLoopStart(ms: Long? = null, fromDrag: Boolean = false) = musicController.setLoopStart(ms, fromDrag)
+
+    fun setLoopEnd(ms: Long? = null, fromDrag: Boolean = false) = musicController.setLoopEnd(ms, fromDrag)
+
+    fun nudgeLoopStart(deltaMs: Long) = musicController.nudgeLoopStart(deltaMs)
+
+    fun nudgeLoopEnd(deltaMs: Long) = musicController.nudgeLoopEnd(deltaMs)
+
+    fun toggleLoop() = musicController.toggleLoop()
+
+    fun clearLoop() = musicController.clearLoop()
 
     companion object {
         fun factory(app: VictusTuneApp): ViewModelProvider.Factory = object : ViewModelProvider.Factory {

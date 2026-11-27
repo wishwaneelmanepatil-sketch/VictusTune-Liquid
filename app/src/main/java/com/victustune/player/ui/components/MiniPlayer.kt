@@ -18,8 +18,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +41,7 @@ fun MiniPlayer(
     playbackState: PlaybackUiState,
     progressStateFlow: StateFlow<PlaybackProgressState>,
     accentColor: Color,
+    surfaceTint: Color = DesignTokens.ElevatedSurface,
     onExpand: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSkipNext: () -> Unit,
@@ -53,8 +55,12 @@ fun MiniPlayer(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .glassmorphic(cornerRadius = 18.dp, tintColor = accentColor, tintAlpha = 0.22f)
+            .matteSurface(
+                cornerRadius = DesignTokens.RadiusMiniPlayer,
+                surfaceColor = DesignTokens.ElevatedSurface,
+                tintColor = surfaceTint,
+                tintFraction = 0.55f
+            )
             .draggable(
                 state = rememberDraggableState { delta ->
                     totalDragOffset += delta
@@ -75,7 +81,7 @@ fun MiniPlayer(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Album artwork thumbnail (downsampled for list/miniplayer display)
@@ -94,8 +100,8 @@ fun MiniPlayer(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(DarkSurfaceVariant)
+                        .clip(DesignTokens.ThumbShape)
+                        .background(DesignTokens.InteractiveSurface)
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -110,31 +116,32 @@ fun MiniPlayer(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold
                         ),
-                        color = TextPrimary
+                        color = DesignTokens.TextPrimary
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = song.artist,
                         fontSize = 12.sp,
-                        color = TextSecondary,
+                        color = DesignTokens.TextSecondary,
                         maxLines = 1
                     )
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Play / Pause Button with animated icon
+                // Play / Pause Button
                 IconButton(
                     onClick = onTogglePlayPause,
                     modifier = Modifier
-                        .size(40.dp)
-                        .background(accentColor.copy(alpha = 0.25f), CircleShape)
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = 0.18f))
                 ) {
                     Icon(
                         imageVector = if (playbackState.isPlaying) VictusIcons.Pause else Icons.Filled.PlayArrow,
                         contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(22.dp)
+                        tint = accentColor,
+                        modifier = Modifier.size(21.dp)
                     )
                 }
 
@@ -148,16 +155,20 @@ fun MiniPlayer(
                     Icon(
                         imageVector = VictusIcons.SkipNext,
                         contentDescription = "Next",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(22.dp)
+                        tint = DesignTokens.TextSecondary,
+                        modifier = Modifier.size(21.dp)
                     )
                 }
             }
 
-            // Isolated leaf micro-progress bar (only this leaf recomposes/draws on progress ticks)
+            // Isolated leaf 2dp rounded progress bar inset along the bottom edge
             MiniPlayerProgressBar(
                 progressStateFlow = progressStateFlow,
-                accentColor = accentColor
+                accentColor = accentColor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 4.dp)
             )
         }
     }
@@ -166,7 +177,8 @@ fun MiniPlayer(
 @Composable
 private fun MiniPlayerProgressBar(
     progressStateFlow: StateFlow<PlaybackProgressState>,
-    accentColor: Color
+    accentColor: Color,
+    modifier: Modifier = Modifier
 ) {
     val progressState by progressStateFlow.collectAsStateWithLifecycle()
     val animatedProgress by animateFloatAsState(
@@ -174,24 +186,25 @@ private fun MiniPlayerProgressBar(
         animationSpec = tween(durationMillis = 200),
         label = "miniPlayerProgress"
     )
-    val trackColor = Color.White.copy(alpha = 0.1f)
-    val progressBrush = remember(accentColor) {
-        Brush.horizontalGradient(
-            colors = listOf(accentColor.copy(alpha = 0.7f), accentColor, VividCyan)
-        )
-    }
+    val trackColor = Color.White.copy(alpha = 0.08f)
 
     Canvas(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .height(3.dp)
+            .height(2.dp)
     ) {
-        drawRect(color = trackColor)
+        val radius = CornerRadius(size.height / 2f, size.height / 2f)
+        drawRoundRect(
+            color = trackColor,
+            cornerRadius = radius
+        )
         val fillWidth = (size.width * animatedProgress.coerceIn(0f, 1f))
         if (fillWidth > 0f) {
-            drawRect(
-                brush = progressBrush,
-                size = Size(width = fillWidth, height = size.height)
+            drawRoundRect(
+                color = accentColor,
+                topLeft = Offset.Zero,
+                size = Size(width = fillWidth, height = size.height),
+                cornerRadius = radius
             )
         }
     }

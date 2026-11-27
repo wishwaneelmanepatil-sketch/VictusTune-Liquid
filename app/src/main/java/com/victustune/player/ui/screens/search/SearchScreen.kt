@@ -701,8 +701,8 @@ fun RemoteTrackSearchItem(
         track.durationText?.let { dur ->
             Text(
                 text = dur,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextTertiary,
+                style = TabularNumericStyle.copy(fontSize = 12.sp),
+                color = DesignTokens.TextTertiary,
                 modifier = Modifier.padding(horizontal = 6.dp)
             )
         }

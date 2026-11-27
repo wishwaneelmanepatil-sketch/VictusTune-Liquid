@@ -24,6 +24,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.victustune.player.data.model.AudioQuality
 import com.victustune.player.data.model.AuthState
+import com.victustune.player.data.model.SliderColorMode
+import com.victustune.player.data.model.SliderPreferences
+import com.victustune.player.data.model.SliderStyle
+import com.victustune.player.ui.components.SliderStylePreview
+import com.victustune.player.ui.components.matteSurface
 import com.victustune.player.ui.theme.*
 
 @Composable
@@ -45,6 +50,11 @@ fun SettingsDialog(
     downloadWifiOnly: Boolean = false,
     onToggleDownloadWifiOnly: (Boolean) -> Unit = {},
     onDeleteAllDownloads: () -> Unit = {},
+    sliderPreferences: SliderPreferences = SliderPreferences(),
+    onSelectSliderStyle: (SliderStyle) -> Unit = {},
+    onSelectSliderColorMode: (SliderColorMode) -> Unit = {},
+    onToggleShowSliderThumb: (Boolean) -> Unit = {},
+    accentColor: Color = ElectricPurple,
     onDismiss: () -> Unit
 ) {
     val formattedCache = formatBytes(currentCacheBytes)
@@ -369,7 +379,126 @@ fun SettingsDialog(
                     }
                 }
 
-                HorizontalDivider(color = DarkSurfaceVariant)
+                HorizontalDivider(color = DesignTokens.HairlineBorder, thickness = 0.75.dp)
+
+                // Appearance & Now Playing Slider Section
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Appearance",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = accentColor
+                    )
+
+                    Text(
+                        text = "Now Playing Slider Style",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = DesignTokens.TextSecondary
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SliderStyle.entries.forEach { style ->
+                            val isSelected = sliderPreferences.style == style
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .matteSurface(
+                                        cornerRadius = DesignTokens.RadiusCard,
+                                        surfaceColor = if (isSelected) DesignTokens.InteractiveSurface else DesignTokens.ElevatedSurface,
+                                        borderColor = if (isSelected) accentColor.copy(alpha = 0.7f) else DesignTokens.HairlineBorder,
+                                        borderWidth = if (isSelected) 1.dp else DesignTokens.HairlineStrokeWidth
+                                    )
+                                    .clickable { onSelectSliderStyle(style) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = style.label,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                                        ),
+                                        color = if (isSelected) DesignTokens.TextPrimary else DesignTokens.TextSecondary
+                                    )
+                                    if (isSelected) {
+                                        Text(
+                                            text = "Active",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = accentColor
+                                        )
+                                    }
+                                }
+                                val previewColor = if (sliderPreferences.colorMode == SliderColorMode.MONOCHROME) Color.White else accentColor
+                                SliderStylePreview(
+                                    style = style,
+                                    accentColor = previewColor,
+                                    showThumb = sliderPreferences.showThumb
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "Slider Color Mode",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = DesignTokens.TextSecondary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SliderColorMode.entries.forEach { mode ->
+                            val isSelected = sliderPreferences.colorMode == mode
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { onSelectSliderColorMode(mode) },
+                                label = {
+                                    Text(
+                                        text = if (mode == SliderColorMode.DYNAMIC) "Dynamic (Art)" else "Monochrome",
+                                        fontSize = 12.sp
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = accentColor.copy(alpha = 0.2f),
+                                    selectedLabelColor = accentColor
+                                )
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Show Thumb Handle",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = DesignTokens.TextPrimary
+                            )
+                            Text(
+                                text = "Display draggable handle on Minimal & Squiggly sliders",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = DesignTokens.TextTertiary
+                            )
+                        }
+                        Switch(
+                            checked = sliderPreferences.showThumb,
+                            onCheckedChange = onToggleShowSliderThumb,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = accentColor
+                            )
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = DesignTokens.HairlineBorder, thickness = 0.75.dp)
 
                 // Offline Storage & Downloads Section
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

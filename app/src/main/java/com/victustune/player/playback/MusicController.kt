@@ -12,8 +12,10 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.victustune.player.data.local.datastore.PreferencesManager
+import com.victustune.player.data.model.LoopRegion
 import com.victustune.player.data.model.PlaybackProgressState
 import com.victustune.player.data.model.PlaybackUiState
 import com.victustune.player.data.model.QueueEntry
@@ -60,7 +62,15 @@ class MusicController(
             context,
             ComponentName(context, PlaybackService::class.java)
         )
-        controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
+        controllerFuture = MediaController.Builder(context, sessionToken)
+            .setListener(object : MediaController.Listener {
+                override fun onExtrasChanged(controller: MediaController, extras: Bundle) {
+                    LoopSessionCommands.fromBundle(extras)?.let { loop ->
+                        _playbackState.update { it.copy(loopRegion = loop) }
+                    }
+                }
+            })
+            .buildAsync()
         controllerFuture?.addListener({
             try {
                 mediaController = controllerFuture?.get()
@@ -76,6 +86,7 @@ class MusicController(
 
         controller.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                _playbackState.update { it.copy(loopRegion = LoopRegion()) }
                 updateCurrentSong(controller)
             }
 
@@ -237,7 +248,8 @@ class MusicController(
                 queue = currentSongList,
                 queueEntries = currentQueueEntries,
                 currentQueueIndex = safeIndex,
-                currentSong = targetSong
+                currentSong = targetSong,
+                loopRegion = LoopRegion()
             )
         }
         _progressState.value = PlaybackProgressState(
@@ -307,8 +319,84 @@ class MusicController(
     }
 
     fun seekTo(positionMs: Long) {
-        mediaController?.seekTo(positionMs)
-        _progressState.update { it.copy(currentPositionMs = positionMs.coerceAtLeast(0L)) }
+        val loop = _playbackState.value.loopRegion
+        val effectivePos = if (loop.isValidActive && positionMs >= (loop.endMs ?: Long.MAX_VALUE)) {
+            loop.startMs ?: 0L
+        } else {
+            positionMs.coerceAtLeast(0L)
+        }
+        mediaController?.seekTo(effectivePos)
+        _progressState.update { it.copy(currentPositionMs = effectivePos) }
+    }
+
+    fun setLoopStart(ms: Long? = null, fromDrag: Boolean = false) {
+        val controller = mediaController ?: return
+        val targetMs = (ms ?: controller.currentPosition).coerceAtLeast(0L)
+        val duration = controller.duration.takeIf { it > 0L } ?: _progressState.value.totalDurationMs
+        val updated = _playbackState.value.loopRegion.withStartSet(targetMs, duration, fromDrag)
+        _playbackState.update { it.copy(loopRegion = updated) }
+        sendLoopCommand(
+            LoopSessionCommands.ACTION_SET_LOOP_START,
+            Bundle().apply {
+                putLong(LoopSessionCommands.EXTRA_POSITION_MS, targetMs)
+                putBoolean(LoopSessionCommands.EXTRA_FROM_DRAG, fromDrag)
+            }
+        )
+    }
+
+    fun setLoopEnd(ms: Long? = null, fromDrag: Boolean = false) {
+        val controller = mediaController ?: return
+        val targetMs = (ms ?: controller.currentPosition).coerceAtLeast(0L)
+        val duration = controller.duration.takeIf { it > 0L } ?: _progressState.value.totalDurationMs
+        val updated = _playbackState.value.loopRegion.withEndSet(targetMs, duration, fromDrag)
+        _playbackState.update { it.copy(loopRegion = updated) }
+        if (updated.isValidActive && controller.currentPosition >= (updated.endMs ?: Long.MAX_VALUE)) {
+            _progressState.update { it.copy(currentPositionMs = updated.startMs ?: 0L) }
+        }
+        sendLoopCommand(
+            LoopSessionCommands.ACTION_SET_LOOP_END,
+            Bundle().apply {
+                putLong(LoopSessionCommands.EXTRA_POSITION_MS, targetMs)
+                putBoolean(LoopSessionCommands.EXTRA_FROM_DRAG, fromDrag)
+            }
+        )
+    }
+
+    fun nudgeLoopStart(deltaMs: Long) {
+        val currentStart = _playbackState.value.loopRegion.startMs ?: return
+        setLoopStart((currentStart + deltaMs).coerceAtLeast(0L), fromDrag = true)
+    }
+
+    fun nudgeLoopEnd(deltaMs: Long) {
+        val currentEnd = _playbackState.value.loopRegion.endMs ?: return
+        setLoopEnd((currentEnd + deltaMs).coerceAtLeast(0L), fromDrag = true)
+    }
+
+    fun toggleLoop() {
+        if (mediaController == null) return
+        _playbackState.update { it.copy(loopRegion = it.loopRegion.toggled()) }
+        sendLoopCommand(LoopSessionCommands.ACTION_TOGGLE_LOOP, Bundle.EMPTY)
+    }
+
+    fun clearLoop() {
+        _playbackState.update { it.copy(loopRegion = LoopRegion()) }
+        if (mediaController != null) {
+            sendLoopCommand(LoopSessionCommands.ACTION_CLEAR_LOOP, Bundle.EMPTY)
+        }
+    }
+
+    private fun sendLoopCommand(action: String, args: Bundle) {
+        val controller = mediaController ?: return
+        val future = controller.sendCustomCommand(SessionCommand(action, Bundle.EMPTY), args)
+        future.addListener({
+            try {
+                val result = future.get()
+                LoopSessionCommands.fromBundle(result.extras)?.let { synced ->
+                    _playbackState.update { it.copy(loopRegion = synced) }
+                }
+            } catch (_: Exception) {
+            }
+        }, ContextCompat.getMainExecutor(context))
     }
 
     fun toggleShuffle() {

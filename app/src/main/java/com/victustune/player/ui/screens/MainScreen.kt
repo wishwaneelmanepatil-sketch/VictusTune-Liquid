@@ -28,9 +28,9 @@ import com.victustune.player.VictusTuneApp
 import com.victustune.player.data.download.DownloadStatus
 import com.victustune.player.data.model.*
 import com.victustune.player.data.transfer.ExportFormat
-import com.victustune.player.ui.components.FloatingNavDock
 import com.victustune.player.ui.components.MiniPlayer
 import com.victustune.player.ui.components.NavDockItem
+import com.victustune.player.ui.components.NavigationDock
 import com.victustune.player.ui.screens.auth.LoginScreen
 import com.victustune.player.ui.screens.explore.ExploreScreen
 import com.victustune.player.ui.screens.explore.RemoteDetailScreen
@@ -96,6 +96,7 @@ fun MainScreen(
     val audioQuality by viewModel.audioQuality.collectAsStateWithLifecycle()
     val currentCacheBytes by viewModel.currentCacheBytes.collectAsStateWithLifecycle()
     val maxCacheSizeMb by viewModel.maxCacheSizeMb.collectAsStateWithLifecycle()
+    val sliderPreferences by viewModel.sliderPreferences.collectAsStateWithLifecycle()
 
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val syncedPlaylists by viewModel.syncedPlaylists.collectAsStateWithLifecycle()
@@ -258,8 +259,10 @@ fun MainScreen(
     // When backStack is empty, currentTab is MainTab.EXPLORE, and no overlays/dialogs are open,
     // all BackHandlers above are disabled. The system Android Back naturally exits/minimizes the app.
 
-    // Dynamic accent color extracted from current playing track cover art!
-    val accentColor by rememberDynamicAccentColor(playbackState.currentSong?.albumArtUri)
+    // Dynamic accent & muted matte surface tint extracted from current playing track cover art
+    val dynamicColors = rememberDynamicColors(playbackState.currentSong?.albumArtUri)
+    val accentColor = dynamicColors.accent
+    val surfaceTint = dynamicColors.surfaceTint
 
     Box(
         modifier = modifier
@@ -758,18 +761,38 @@ fun MainScreen(
             }
         }
 
-        // Persistent Mini-Player floating docked above the navigation dock
+        // Subtle bottom vertical gradient scrim so scrolling lists fade cleanly behind the dock
+        if (!isNowPlayingExpanded && currentSubScreen !is SubScreen.Login) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                DesignTokens.CanvasBackground.copy(alpha = 0.85f),
+                                DesignTokens.CanvasBackground
+                            )
+                        )
+                    )
+            )
+        }
+
+        // Persistent Mini-Player floating cleanly aligned 8dp above the navigation dock
         if (playbackState.currentSong != null && !isNowPlayingExpanded && currentSubScreen !is SubScreen.Login) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(bottom = 78.dp, start = 12.dp, end = 12.dp)
+                    .padding(bottom = 78.dp, start = DesignTokens.SpaceMd, end = DesignTokens.SpaceMd)
             ) {
                 MiniPlayer(
                     playbackState = playbackState,
                     progressStateFlow = viewModel.progressState,
                     accentColor = accentColor,
+                    surfaceTint = surfaceTint,
                     onExpand = { isNowPlayingExpanded = true },
                     onTogglePlayPause = { viewModel.togglePlayPause() },
                     onSkipNext = { viewModel.playNext() },
@@ -778,15 +801,15 @@ fun MainScreen(
             }
         }
 
-        // Floating Navigation Dock (Home, Search, Library, Playlists)
+        // Matte Floating Pill Navigation Dock (Home, Search, Library, Playlists)
         if (!isNowPlayingExpanded && currentSubScreen !is SubScreen.Login) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(bottom = 8.dp)
+                    .padding(bottom = DesignTokens.SpaceSm)
             ) {
-                FloatingNavDock(
+                NavigationDock(
                     currentTab = currentTab,
                     currentSubScreen = currentSubScreen,
                     accentColor = accentColor,
@@ -835,6 +858,9 @@ fun MainScreen(
                 progressStateFlow = viewModel.progressState,
                 lyrics = lyrics,
                 accentColor = accentColor,
+                surfaceTint = surfaceTint,
+                sliderPreferences = sliderPreferences,
+                onCycleSliderStyle = { viewModel.cycleSliderStyle() },
                 onDismiss = { isNowPlayingExpanded = false },
                 onTogglePlayPause = { viewModel.togglePlayPause() },
                 onSkipNext = { viewModel.playNext() },
@@ -863,7 +889,15 @@ fun MainScreen(
                             viewModel.downloadSong(song)
                         }
                     }
-                }
+                },
+                onSetLoopStart = { ms -> viewModel.setLoopStart(ms, fromDrag = false) },
+                onSetLoopEnd = { ms -> viewModel.setLoopEnd(ms, fromDrag = false) },
+                onDragLoopStart = { ms -> viewModel.setLoopStart(ms, fromDrag = true) },
+                onDragLoopEnd = { ms -> viewModel.setLoopEnd(ms, fromDrag = true) },
+                onNudgeLoopStart = { delta -> viewModel.nudgeLoopStart(delta) },
+                onNudgeLoopEnd = { delta -> viewModel.nudgeLoopEnd(delta) },
+                onToggleLoop = { viewModel.toggleLoop() },
+                onClearLoop = { viewModel.clearLoop() }
             )
         }
 
@@ -918,6 +952,11 @@ fun MainScreen(
                 downloadWifiOnly = downloadWifiOnly,
                 onToggleDownloadWifiOnly = { viewModel.setDownloadWifiOnly(it) },
                 onDeleteAllDownloads = { viewModel.removeAllDownloads() },
+                sliderPreferences = sliderPreferences,
+                onSelectSliderStyle = { viewModel.setSliderStyle(it) },
+                onSelectSliderColorMode = { viewModel.setSliderColorMode(it) },
+                onToggleShowSliderThumb = { viewModel.setShowSliderThumb(it) },
+                accentColor = accentColor,
                 onDismiss = { isSettingsOpen = false }
             )
         }

@@ -992,4 +992,228 @@ object VictusIcons {
             }.build()
             return _dragHandle!!
         }
+
+    private var _loopAb: ImageVector? = null
+    val LoopAb: ImageVector
+        get() {
+            if (_loopAb != null) return _loopAb!!
+            _loopAb = ImageVector.Builder(
+                name = "LoopAb",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                // Top forward loop arrow + bottom return loop arrow + center segment bars (A-B section loop)
+                moveTo(7f, 7f)
+                horizontalLineToRelative(10f)
+                verticalLineToRelative(3f)
+                lineToRelative(4f, -4f)
+                lineToRelative(-4f, -4f)
+                verticalLineToRelative(3f)
+                horizontalLineTo(5f)
+                verticalLineToRelative(6f)
+                horizontalLineToRelative(2f)
+                verticalLineTo(7f)
+                close()
+                moveTo(17f, 17f)
+                horizontalLineTo(7f)
+                verticalLineToRelative(-3f)
+                lineToRelative(-4f, 4f)
+                lineToRelative(4f, 4f)
+                verticalLineToRelative(-3f)
+                horizontalLineToRelative(12f)
+                verticalLineToRelative(-6f)
+                horizontalLineToRelative(-2f)
+                verticalLineToRelative(4f)
+                close()
+                // Left bracket marker [A] & right bracket marker [B]
+                moveTo(9f, 9.5f)
+                verticalLineToRelative(5f)
+                horizontalLineToRelative(1.5f)
+                verticalLineToRelative(-5f)
+                close()
+                moveTo(13.5f, 9.5f)
+                verticalLineToRelative(5f)
+                horizontalLineTo(15f)
+                verticalLineToRelative(-5f)
+                close()
+            }.build()
+            return _loopAb!!
+        }
+
+    private var _homeOutlined: ImageVector? = null
+    val HomeOutlined: ImageVector
+        get() {
+            if (_homeOutlined != null) return _homeOutlined!!
+            _homeOutlined = ImageVector.Builder(
+                name = "HomeOutlined",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(12f, 5.69f)
+                lineToRelative(5f, 4.5f)
+                verticalLineTo(18f)
+                horizontalLineToRelative(-2f)
+                verticalLineToRelative(-6f)
+                horizontalLineTo(9f)
+                verticalLineToRelative(6f)
+                horizontalLineTo(7f)
+                verticalLineToRelative(-7.81f)
+                lineToRelative(5f, -4.5f)
+                moveTo(12f, 3f)
+                lineTo(2f, 12f)
+                horizontalLineToRelative(3f)
+                verticalLineToRelative(8f)
+                horizontalLineToRelative(6f)
+                verticalLineToRelative(-6f)
+                horizontalLineToRelative(2f)
+                verticalLineToRelative(6f)
+                horizontalLineToRelative(6f)
+                verticalLineToRelative(-8f)
+                horizontalLineToRelative(3f)
+                lineTo(12f, 3f)
+                close()
+            }.build()
+            return _homeOutlined!!
+        }
+
+    private var _libraryMusicOutlined: ImageVector? = null
+    val LibraryMusicOutlined: ImageVector
+        get() {
+            if (_libraryMusicOutlined != null) return _libraryMusicOutlined!!
+            _libraryMusicOutlined = ImageVector.Builder(
+                name = "LibraryMusicOutlined",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(20f, 2f)
+                horizontalLineTo(8f)
+                curveToRelative(-1.1f, 0f, -2f, 0.9f, -2f, 2f)
+                verticalLineToRelative(12f)
+                curveToRelative(0f, 1.1f, 0.9f, 2f, 2f, 2f)
+                horizontalLineToRelative(12f)
+                curveToRelative(1.1f, 0f, 2f, -0.9f, 2f, -2f)
+                verticalLineTo(4f)
+                curveToRelative(0f, -1.1f, -0.9f, -2f, -2f, -2f)
+                close()
+                moveTo(20f, 16f)
+                horizontalLineTo(8f)
+                verticalLineTo(4f)
+                horizontalLineToRelative(12f)
+                verticalLineToRelative(12f)
+                close()
+                moveTo(12.5f, 15f)
+                curveToRelative(1.38f, 0f, 2.5f, -1.12f, 2.5f, -2.5f)
+                verticalLineTo(7f)
+                horizontalLineToRelative(3f)
+                verticalLineTo(5f)
+                horizontalLineToRelative(-4f)
+                verticalLineToRelative(5.51f)
+                curveToRelative(-0.42f, -0.32f, -0.93f, -0.51f, -1.5f, -0.51f)
+                curveToRelative(-1.38f, 0f, -2.5f, 1.12f, -2.5f, 2.5f)
+                reflectiveCurveToRelative(1.12f, 2.5f, 2.5f, 2.5f)
+                close()
+                moveTo(2f, 6f)
+                verticalLineToRelative(14f)
+                curveToRelative(0f, 1.1f, 0.9f, 2f, 2f, 2f)
+                horizontalLineToRelative(14f)
+                verticalLineToRelative(-2f)
+                horizontalLineTo(4f)
+                verticalLineTo(6f)
+                horizontalLineTo(2f)
+                close()
+            }.build()
+            return _libraryMusicOutlined!!
+        }
+
+    private var _playlistsOutlined: ImageVector? = null
+    val PlaylistsOutlined: ImageVector
+        get() {
+            if (_playlistsOutlined != null) return _playlistsOutlined!!
+            _playlistsOutlined = ImageVector.Builder(
+                name = "PlaylistsOutlined",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(3f, 6f)
+                horizontalLineToRelative(12f)
+                verticalLineToRelative(2f)
+                horizontalLineTo(3f)
+                close()
+                moveTo(3f, 10f)
+                horizontalLineToRelative(12f)
+                verticalLineToRelative(2f)
+                horizontalLineTo(3f)
+                close()
+                moveTo(3f, 14f)
+                horizontalLineToRelative(8f)
+                verticalLineToRelative(2f)
+                horizontalLineTo(3f)
+                close()
+                moveTo(17f, 10f)
+                verticalLineToRelative(6.5f)
+                curveToRelative(0f, 1.38f, -1.12f, 2.5f, -2.5f, 2.5f)
+                reflectiveCurveTo(12f, 17.88f, 12f, 16.5f)
+                reflectiveCurveToRelative(1.12f, -2.5f, 2.5f, -2.5f)
+                curveToRelative(0.36f, 0f, 0.7f, 0.08f, 1f, 0.22f)
+                verticalLineTo(10f)
+                horizontalLineToRelative(4f)
+                verticalLineToRelative(2f)
+                horizontalLineToRelative(-2.5f)
+                close()
+            }.build()
+            return _playlistsOutlined!!
+        }
+
+    private var _graphicEq: ImageVector? = null
+    val GraphicEq: ImageVector
+        get() {
+            if (_graphicEq != null) return _graphicEq!!
+            _graphicEq = ImageVector.Builder(
+                name = "GraphicEq",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).path(fill = SolidColor(Color.White)) {
+                moveTo(7f, 18f)
+                horizontalLineToRelative(2f)
+                verticalLineTo(6f)
+                horizontalLineTo(7f)
+                verticalLineToRelative(12f)
+                close()
+                moveTo(11f, 22f)
+                horizontalLineToRelative(2f)
+                verticalLineTo(2f)
+                horizontalLineToRelative(-2f)
+                verticalLineToRelative(20f)
+                close()
+                moveTo(3f, 14f)
+                horizontalLineToRelative(2f)
+                verticalLineToRelative(-4f)
+                horizontalLineTo(3f)
+                verticalLineToRelative(4f)
+                close()
+                moveTo(15f, 18f)
+                horizontalLineToRelative(2f)
+                verticalLineTo(6f)
+                horizontalLineToRelative(-2f)
+                verticalLineToRelative(12f)
+                close()
+                moveTo(19f, 10f)
+                verticalLineToRelative(4f)
+                horizontalLineToRelative(2f)
+                verticalLineToRelative(-4f)
+                horizontalLineToRelative(-2f)
+                close()
+            }.build()
+            return _graphicEq!!
+        }
 }

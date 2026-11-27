@@ -11,10 +11,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,33 +24,38 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.victustune.player.ui.screens.MainTab
 import com.victustune.player.ui.screens.SubScreen
-import com.victustune.player.ui.theme.TextPrimary
-import com.victustune.player.ui.theme.TextTertiary
+import com.victustune.player.ui.theme.DesignTokens
 import com.victustune.player.ui.theme.VictusIcons
 
-enum class NavDockItem(val title: String, val icon: ImageVector) {
-    HOME("Home", VictusIcons.Home),
-    SEARCH("Search", Icons.Default.Search),
-    LIBRARY("Library", VictusIcons.LibraryMusic),
-    PLAYLISTS("Playlists", VictusIcons.QueueMusic)
+enum class NavDockItem(
+    val title: String,
+    val activeIcon: ImageVector,
+    val inactiveIcon: ImageVector
+) {
+    HOME("Home", VictusIcons.Home, VictusIcons.HomeOutlined),
+    SEARCH("Search", Icons.Filled.Search, Icons.Outlined.Search),
+    LIBRARY("Library", VictusIcons.LibraryMusic, VictusIcons.LibraryMusicOutlined),
+    PLAYLISTS("Playlists", VictusIcons.QueueMusic, VictusIcons.PlaylistsOutlined)
 }
 
 @Composable
-fun FloatingNavDock(
+fun NavigationDock(
     currentTab: MainTab,
     currentSubScreen: SubScreen,
     accentColor: Color,
     onItemSelected: (NavDockItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     val activeItem = when {
         currentSubScreen is SubScreen.Search -> NavDockItem.SEARCH
         currentSubScreen is SubScreen.FavoritesDetail ||
@@ -59,51 +63,52 @@ fun FloatingNavDock(
                 (currentSubScreen is SubScreen.Main && currentTab == MainTab.PLAYLISTS) -> NavDockItem.PLAYLISTS
         currentSubScreen is SubScreen.AlbumDetail ||
                 currentSubScreen is SubScreen.ArtistDetail ||
-                (currentSubScreen is SubScreen.Main && (currentTab == MainTab.TRACKS || currentTab == MainTab.ALBUMS || currentTab == MainTab.ARTISTS || currentTab == MainTab.DOWNLOADS)) -> NavDockItem.LIBRARY
+                (currentSubScreen is SubScreen.Main && (
+                    currentTab == MainTab.TRACKS ||
+                        currentTab == MainTab.ALBUMS ||
+                        currentTab == MainTab.ARTISTS ||
+                        currentTab == MainTab.DOWNLOADS
+                    )) -> NavDockItem.LIBRARY
         else -> NavDockItem.HOME
     }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = DesignTokens.SpaceMd),
         contentAlignment = Alignment.Center
     ) {
-        // Floating pill container with subtle glass border and ambient shadow
         Row(
             modifier = Modifier
+                .fillMaxWidth()
+                .height(62.dp)
                 .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(32.dp),
-                    spotColor = Color.Black.copy(alpha = 0.55f),
+                    elevation = 10.dp,
+                    shape = DesignTokens.DockShape,
+                    spotColor = Color.Black.copy(alpha = 0.5f),
                     ambientColor = Color.Black.copy(alpha = 0.35f)
                 )
-                .clip(RoundedCornerShape(32.dp))
-                .background(Color(0xF2161622)) // 95% opacity dark obsidian slate
+                .clip(DesignTokens.DockShape)
+                .background(DesignTokens.ElevatedSurface)
                 .border(
-                    BorderStroke(
-                        1.2.dp,
-                        Brush.linearGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.22f),
-                                Color.White.copy(alpha = 0.04f),
-                                Color.White.copy(alpha = 0.08f)
-                            )
-                        )
-                    ),
-                    RoundedCornerShape(32.dp)
+                    BorderStroke(1.dp, DesignTokens.HairlineBorder),
+                    DesignTokens.DockShape
                 )
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            NavDockItem.values().forEach { item ->
+            NavDockItem.entries.forEach { item ->
                 val isSelected = activeItem == item
                 NavDockTabItem(
                     item = item,
                     isSelected = isSelected,
                     accentColor = accentColor,
-                    onClick = { onItemSelected(item) }
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onItemSelected(item)
+                    },
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
@@ -115,55 +120,47 @@ private fun NavDockTabItem(
     item: NavDockItem,
     isSelected: Boolean,
     accentColor: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.12f else 1.0f,
+    val indicatorScale by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0.94f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium
         ),
-        label = "dockIconScale"
+        label = "dockIndicatorScale"
     )
 
     val iconColor by animateColorAsState(
-        targetValue = if (isSelected) accentColor else TextTertiary,
+        targetValue = if (isSelected) accentColor else DesignTokens.TextTertiary,
         animationSpec = tween(220),
         label = "dockIconColor"
     )
 
     val textColor by animateColorAsState(
-        targetValue = if (isSelected) TextPrimary else TextTertiary,
+        targetValue = if (isSelected) DesignTokens.TextPrimary else DesignTokens.TextTertiary,
         animationSpec = tween(220),
         label = "dockTextColor"
     )
 
     val pillBackground by animateColorAsState(
         targetValue = if (isSelected) accentColor.copy(alpha = 0.16f) else Color.Transparent,
-        animationSpec = tween(250),
+        animationSpec = tween(220),
         label = "dockPillBackground"
     )
 
-    val pillBorderColor by animateColorAsState(
-        targetValue = if (isSelected) accentColor.copy(alpha = 0.35f) else Color.Transparent,
-        animationSpec = tween(250),
-        label = "dockPillBorder"
-    )
-
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(24.dp))
+        modifier = modifier
+            .fillMaxHeight()
+            .scale(indicatorScale)
+            .clip(DesignTokens.DockShape)
             .background(pillBackground)
-            .border(
-                BorderStroke(1.dp, pillBorderColor),
-                RoundedCornerShape(24.dp)
-            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
-            )
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -171,18 +168,16 @@ private fun NavDockTabItem(
             verticalArrangement = Arrangement.Center
         ) {
             Icon(
-                imageVector = item.icon,
+                imageVector = if (isSelected) item.activeIcon else item.inactiveIcon,
                 contentDescription = item.title,
                 tint = iconColor,
-                modifier = Modifier
-                    .size(22.dp)
-                    .scale(scale)
+                modifier = Modifier.size(22.dp)
             )
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = item.title,
                 fontSize = 11.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                 color = textColor,
                 maxLines = 1
             )

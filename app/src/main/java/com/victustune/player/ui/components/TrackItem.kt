@@ -48,12 +48,11 @@ fun TrackItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onSongClick)
             .background(
-                if (isPlayingCurrent) ElectricPurple.copy(alpha = 0.12f) else Color.Transparent
+                if (isPlayingCurrent) ElectricPurple.copy(alpha = 0.10f) else Color.Transparent
             )
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .clickable(onClick = onSongClick)
+            .padding(horizontal = DesignTokens.SpaceMd, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Album art thumbnail (explicitly downsampled for smooth list scrolling)
@@ -62,9 +61,9 @@ fun TrackItem(
             contentDescription = "${song.title} artwork",
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(DarkSurfaceVariant)
+                .size(50.dp)
+                .clip(DesignTokens.ThumbShape)
+                .background(DesignTokens.InteractiveSurface)
         )
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -76,8 +75,8 @@ fun TrackItem(
             Text(
                 text = song.title,
                 fontSize = 15.sp,
-                fontWeight = if (isPlayingCurrent) FontWeight.Bold else FontWeight.Medium,
-                color = if (isPlayingCurrent) VividCyan else TextPrimary,
+                fontWeight = if (isPlayingCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (isPlayingCurrent) VividCyan else DesignTokens.TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -85,7 +84,7 @@ fun TrackItem(
             Text(
                 text = "${song.artist} • ${song.album}",
                 fontSize = 12.sp,
-                color = TextSecondary,
+                color = DesignTokens.TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -127,11 +126,12 @@ fun TrackItem(
             }
         }
 
-        // Duration text
+        // Duration text with tabular numerals
         Text(
             text = song.durationFormatted,
+            style = TabularNumericStyle,
             fontSize = 12.sp,
-            color = TextTertiary
+            color = DesignTokens.TextTertiary
         )
 
         // Favorite icon toggle

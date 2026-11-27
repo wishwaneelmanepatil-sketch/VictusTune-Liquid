@@ -6,6 +6,9 @@ import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.victustune.player.data.model.AudioQuality
 import com.victustune.player.data.model.RepeatMode
+import com.victustune.player.data.model.SliderColorMode
+import com.victustune.player.data.model.SliderPreferences
+import com.victustune.player.data.model.SliderStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -32,6 +35,9 @@ class PreferencesManager(private val context: Context) {
         val MAX_CACHE_SIZE_MB = intPreferencesKey("max_cache_size_mb")
         val DOWNLOAD_QUALITY = stringPreferencesKey("download_quality")
         val DOWNLOAD_WIFI_ONLY = booleanPreferencesKey("download_wifi_only")
+        val SLIDER_STYLE = stringPreferencesKey("slider_style")
+        val SLIDER_COLOR_MODE = stringPreferencesKey("slider_color_mode")
+        val SHOW_SLIDER_THUMB = booleanPreferencesKey("show_slider_thumb")
     }
 
     val downloadQualityFlow: Flow<String> = context.dataStore.data.map { preferences ->
@@ -147,6 +153,47 @@ class PreferencesManager(private val context: Context) {
     suspend fun setEqualizerBands(bands: List<Int>) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.EQ_BANDS] = bands.joinToString(",")
+        }
+    }
+
+    val sliderPreferencesFlow: Flow<SliderPreferences> = context.dataStore.data.map { preferences ->
+        val styleName = preferences[PreferencesKeys.SLIDER_STYLE] ?: SliderStyle.WAVEFORM.name
+        val style = try {
+            SliderStyle.valueOf(styleName)
+        } catch (_: Exception) {
+            SliderStyle.WAVEFORM
+        }
+
+        val modeName = preferences[PreferencesKeys.SLIDER_COLOR_MODE] ?: SliderColorMode.DYNAMIC.name
+        val colorMode = try {
+            SliderColorMode.valueOf(modeName)
+        } catch (_: Exception) {
+            SliderColorMode.DYNAMIC
+        }
+
+        val showThumb = preferences[PreferencesKeys.SHOW_SLIDER_THUMB] ?: true
+        SliderPreferences(
+            style = style,
+            colorMode = colorMode,
+            showThumb = showThumb
+        )
+    }
+
+    suspend fun setSliderStyle(style: SliderStyle) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SLIDER_STYLE] = style.name
+        }
+    }
+
+    suspend fun setSliderColorMode(mode: SliderColorMode) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SLIDER_COLOR_MODE] = mode.name
+        }
+    }
+
+    suspend fun setShowSliderThumb(show: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SHOW_SLIDER_THUMB] = show
         }
     }
 }

@@ -172,44 +172,40 @@ fun DownloadsScreen(
                     contentType = { "active_download" }
                 ) { downloadItem ->
                     val progress = downloadProgress[downloadItem.videoId] ?: downloadItem.progress
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(DesignTokens.CardShape)
+                            .background(DesignTokens.ElevatedSurface)
+                            .padding(horizontal = DesignTokens.SpaceMd, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp)) {
-                                CircularProgressIndicator(
-                                    progress = { (progress / 100f).coerceIn(0.05f, 1f) },
-                                    strokeWidth = 3.dp,
-                                    color = VividCyan,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = downloadItem.title,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = TextPrimary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "${downloadItem.artist} • ${progress.toInt()}%",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextSecondary,
-                                    maxLines = 1
-                                )
-                            }
-                            IconButton(onClick = { onRemoveDownload(downloadItem.videoId) }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Cancel", tint = TextTertiary)
-                            }
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp)) {
+                            CircularProgressIndicator(
+                                progress = { (progress / 100f).coerceIn(0.05f, 1f) },
+                                strokeWidth = 3.dp,
+                                color = VividCyan,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = downloadItem.title,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = DesignTokens.TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "${downloadItem.artist} • ${progress.toInt()}%",
+                                style = TabularNumericStyle.copy(fontSize = 12.sp),
+                                color = DesignTokens.TextSecondary,
+                                maxLines = 1
+                            )
+                        }
+                        IconButton(onClick = { onRemoveDownload(downloadItem.videoId) }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Cancel", tint = DesignTokens.TextTertiary)
                         }
                     }
                 }

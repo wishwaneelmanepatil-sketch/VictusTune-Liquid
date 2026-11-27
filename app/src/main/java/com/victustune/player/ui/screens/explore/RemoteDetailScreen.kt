@@ -301,13 +301,13 @@ fun RemoteDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onTrackClick(track, tracks) }
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                            .padding(horizontal = DesignTokens.SpaceMd, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "${index + 1}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextTertiary,
+                            style = TabularNumericStyle.copy(fontSize = 13.sp),
+                            color = DesignTokens.TextTertiary,
                             modifier = Modifier.width(28.dp)
                         )
 
@@ -317,8 +317,8 @@ fun RemoteDetailScreen(
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .size(48.dp)
+                                    .clip(DesignTokens.ThumbShape)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                         }
@@ -327,14 +327,14 @@ fun RemoteDetailScreen(
                             Text(
                                 text = track.title,
                                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                                color = TextPrimary,
+                                color = DesignTokens.TextPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = track.artist,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary,
+                                color = DesignTokens.TextSecondary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -343,8 +343,8 @@ fun RemoteDetailScreen(
                         track.durationText?.let { dur ->
                             Text(
                                 text = dur,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextTertiary,
+                                style = TabularNumericStyle.copy(fontSize = 12.sp),
+                                color = DesignTokens.TextTertiary,
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             )
                         }
